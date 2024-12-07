@@ -11,7 +11,7 @@ import {
 import "@/index.scss";
 import { SettingUtils } from "./libs/setting-utils";
 import { svelteDialog } from "./libs/dialog";
-import { sql, moveDocsByID, getBlockByID, getBlockDOM, getFile, putFile, refreshSql } from "./api";
+import { sql, moveDocsByID, getBlockByID, getBlockDOM, getFile, putFile, refreshSql, createDocWithMd, updateBlock} from "./api";
 
 const STORAGE_NAME = "config";
 
@@ -76,7 +76,7 @@ export default class DocMoverPlugin extends Plugin {
                                 showMessage("No referenced blocks found");
                                 return;
                             }
-                            await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds, true);
+                            await this.moveAndSortReferencedDocs(detail.protyle.block.rootID, blockIds, true);
                         }
                     },
                     {
@@ -88,7 +88,7 @@ export default class DocMoverPlugin extends Plugin {
                                 showMessage("No referenced blocks found");
                                 return;
                             }
-                            await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds, true, true);
+                            await this.moveAndSortReferencedDocs(detail.protyle.block.rootID, blockIds, true, true);
                         }
                     }
                 ]
@@ -99,6 +99,48 @@ export default class DocMoverPlugin extends Plugin {
         // Add default menu items for other blocks
         this.addDefaultBlockMenuItem(detail.menu, detail.blockElements, detail.protyle);
     }
+
+    private async createChildDocsFromParagraphs(block: HTMLElement, parentDocID: string) {
+        // If block itself is a paragraph, use it directly
+        const paragraphElements = block.classList.contains('p') ?
+            [block] :
+            Array.from(block.querySelectorAll('div.p'));
+
+        const paragraphInfos = paragraphElements
+            .map(el => ({
+                content: el.querySelector('div:first-child')?.textContent?.trim() || '',
+                id: el.getAttribute('data-node-id')
+            }))
+            .filter(info => info.content.length > 0);
+
+        if (paragraphInfos.length === 0) {
+            showMessage("No valid paragraphs found");
+            return;
+        }
+    
+        showMessage(`Creating ${paragraphInfos.length} documents...`);
+    
+        // Get parent document info for creating child docs
+        const parentDoc = await getBlockByID(parentDocID);
+        const boxID = parentDoc.box;
+        const parentPath = parentDoc.hpath;
+    
+        for (const { content, id } of paragraphInfos) {
+            // Create new document
+            try {
+                const docID = await createDocWithMd(boxID, `${parentPath}/${content}`, "");
+                
+                // Replace paragraph content with block reference
+                const refMd = `<span data-type="block-ref" data-id="${docID}" data-subtype="d">${content}</span>`;
+                await updateBlock("markdown", refMd, id);
+            } catch (e) {
+                console.error(`Failed to create document for "${content}"`, e);
+            }
+        }
+    
+        showMessage(`Created ${paragraphInfos.length} documents`);
+    }
+
 
     private addDefaultBlockMenuItem(menu: Menu, blockElements: HTMLElement[], protyle: Protyle) {
         menu.addItem({
@@ -119,7 +161,7 @@ export default class DocMoverPlugin extends Plugin {
                             showMessage("No references found");
                             return;
                         }
-                        await this.moveReferencedDocs(protyle.block.rootID, blockIds);
+                        await this.moveAndSortReferencedDocs(protyle.block.rootID, blockIds);
                     }
                 },
                 {
@@ -136,7 +178,18 @@ export default class DocMoverPlugin extends Plugin {
                             showMessage("No references found");
                             return;
                         }
-                        await this.moveReferencedDocs(protyle.block.rootID, blockIds, false, true);
+                        await this.moveAndSortReferencedDocs(protyle.block.rootID, blockIds, false, true);
+                    }
+                },
+                {
+                    icon: "iconAdd",
+                    label: "Create Child Docs from Paragraphs",
+                    click: async () => {
+                        for (const blockElement of blockElements) {
+                            await this.createChildDocsFromParagraphs(blockElement, protyle.block.rootID);
+                        }
+                        // sort referenced docs after creating child docs
+                        await this.moveAndSortReferencedDocs(protyle.block.rootID, undefined, false, true);
                     }
                 }
             ]
@@ -152,14 +205,14 @@ export default class DocMoverPlugin extends Plugin {
                     icon: "iconMove",
                     label: "Move referenced docs as childdocs and sort",
                     click: async () => {
-                        await this.moveReferencedDocs(detail.protyle.block.rootID);
+                        await this.moveAndSortReferencedDocs(detail.protyle.block.rootID);
                     }
                 },
                 {
                     icon: "iconSort",
                     label: "Only sort referenced childdocs",
                     click: async () => {
-                        await this.moveReferencedDocs(detail.protyle.block.rootID, undefined, false, true);
+                        await this.moveAndSortReferencedDocs(detail.protyle.block.rootID, undefined, false, true);
                     }
                 }
             ]
@@ -184,7 +237,7 @@ export default class DocMoverPlugin extends Plugin {
             .sort((a, b) => a.sortValue - b.sortValue);
     }
 
-    private async moveReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false, onlySort: boolean = false) {
+    private async moveAndSortReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false, onlySort: boolean = false) {
         showMessage("Processing...");
         await refreshSql();
 
