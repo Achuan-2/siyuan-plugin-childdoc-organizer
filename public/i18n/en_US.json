@@ -1,3 +1,15 @@
 {
-
+    "childDocOrganizer": "ChildDoc Organizer",
+    "moveAndSort": "Move referenced docs as childdocs and sort",
+    "onlySort": "Only sort referenced childdocs",
+    "createFromParagraphs": "Create Child Docs from Paragraphs",
+    "noReferencesFound": "No references found",
+    "noValidParagraphs": "No valid paragraphs found",
+    "creatingDocs": "Creating {count} documents...",
+    "createdDocs": "Created {count} documents",
+    "processing": "Processing...",
+    "movedDocs": "Moved {count} documents",
+    "sortedDocs": "Sorted {count} documents ({affected} affected, {unaffected} unaffected)",
+    "noDocsProcessed": "No documents were moved or sorted",
+    "noReferencedBlocksFound": "No referenced blocks found"
 }

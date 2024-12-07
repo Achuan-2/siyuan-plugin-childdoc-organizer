@@ -183,11 +183,11 @@ export default class DocMoverPlugin extends Plugin {
         // Handle block containing multiple paragraphs
         const paragraphElements = Array.from(block.querySelectorAll('div.p'));
         if (paragraphElements.length === 0) {
-            showMessage("No valid paragraphs found");
+            showMessage(this.i18n.noValidParagraphs);
             return;
         }
 
-        showMessage(`Creating ${paragraphElements.length} documents...`);
+        showMessage(this.i18n.creatingDocs.replace("{count}", paragraphElements.length.toString()));
 
         for (const paragraph of paragraphElements) {
             // Skip if paragraph already contains a block reference
@@ -207,17 +207,17 @@ export default class DocMoverPlugin extends Plugin {
             }
         }
 
-        showMessage(`Created ${paragraphElements.length} documents`);
+        showMessage(this.i18n.createdDocs.replace("{count}", paragraphElements.length.toString()));
     }
 
     private addDefaultBlockMenuItem(menu: Menu, blockElements: HTMLElement[], protyle: Protyle) {
         menu.addItem({
             icon: "iconSort",
-            label: "ChildDoc Organizer",
+            label: this.i18n.childDocOrganizer,
             submenu: [
                 {
                     icon: "iconMove",
-                    label: "Move referenced docs as childdocs and sort",
+                    label: this.i18n.moveAndSort,
                     click: async () => {
                         const blockIds = [];
                         for (const blockElement of blockElements) {
@@ -226,7 +226,7 @@ export default class DocMoverPlugin extends Plugin {
                             blockIds.push(...refs);
                         }
                         if (blockIds.length === 0) {
-                            showMessage("No references found");
+                            showMessage(this.i18n.noReferencesFound);
                             return;
                         }
                         await this.moveAndSortReferencedDocs(protyle.block.rootID, blockIds);
@@ -234,7 +234,7 @@ export default class DocMoverPlugin extends Plugin {
                 },
                 {
                     icon: "iconSort",
-                    label: "Only sort referenced childdocs",
+                    label: this.i18n.onlySort,
                     click: async () => {
                         const blockIds = [];
                         for (const blockElement of blockElements) {
@@ -251,7 +251,7 @@ export default class DocMoverPlugin extends Plugin {
                 },
                 {
                     icon: "iconAdd",
-                    label: "Create Child Docs from Paragraphs",
+                    label: this.i18n.createFromParagraphs,
                     click: async () => {
                         for (const blockElement of blockElements) {
                             await this.createChildDocsFromParagraphs(blockElement, protyle.block.rootID);
@@ -306,7 +306,7 @@ export default class DocMoverPlugin extends Plugin {
     }
 
     private async moveAndSortReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false, onlySort: boolean = false) {
-        showMessage("Processing...");
+        showMessage(this.i18n.processing);
         await refreshSql();
 
         let movedCount = 0;
@@ -439,12 +439,15 @@ export default class DocMoverPlugin extends Plugin {
         // Show detailed message
         let message = [];
         if (!onlySort && movedCount > 0) {
-            message.push(`Moved ${movedCount} documents`);
+            message.push(this.i18n.movedDocs.replace("{count}", movedCount.toString()));
         }
         if (sortedCount > 0 || unaffectedCount > 0) {
-            message.push(`Sorted ${sortedCount + unaffectedCount} documents (${sortedCount} affected, ${unaffectedCount} unaffected)`);
+            message.push(this.i18n.sortedDocs
+                .replace("{count}", (sortedCount + unaffectedCount).toString())
+                .replace("{affected}", sortedCount.toString())
+                .replace("{unaffected}", unaffectedCount.toString()));
         }
-        showMessage(message.length > 0 ? message.join(', ') : 'No documents were moved or sorted');
+        showMessage(message.length > 0 ? message.join(', ') : this.i18n.noDocsProcessed);
 
     }
 
