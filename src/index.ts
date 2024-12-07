@@ -64,28 +64,34 @@ export default class DocMoverPlugin extends Plugin {
         // Handle attribute view specifically
         if (this.isAttributeView(block)) {
             detail.menu.addItem({
-                icon: "iconMove",
-                label: "Move referenced docs as childdocs and sort",
-                click: async () => {
-                    const blockIds = await this.getBoundBlockIds(block);
-                    if (blockIds.length === 0) {
-                        showMessage("No referenced blocks found");
-                        return;
-                    }
-                    await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds, true);
-                }
-            });
-            detail.menu.addItem({
                 icon: "iconSort",
-                label: "Only sort referenced childdocs",
-                click: async () => {
-                    const blockIds = await this.getBoundBlockIds(block);
-                    if (blockIds.length === 0) {
-                        showMessage("No referenced blocks found");
-                        return;
+                label: "ChildDoc Organizer",
+                submenu: [
+                    {
+                        icon: "iconMove",
+                        label: "Move referenced docs as childdocs and sort",
+                        click: async () => {
+                            const blockIds = await this.getBoundBlockIds(block);
+                            if (blockIds.length === 0) {
+                                showMessage("No referenced blocks found");
+                                return;
+                            }
+                            await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds, true);
+                        }
+                    },
+                    {
+                        icon: "iconSort",
+                        label: "Only sort referenced childdocs",
+                        click: async () => {
+                            const blockIds = await this.getBoundBlockIds(block);
+                            if (blockIds.length === 0) {
+                                showMessage("No referenced blocks found");
+                                return;
+                            }
+                            await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds, true, true);
+                        }
                     }
-                    await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds, true, true);
-                }
+                ]
             });
             return;
         }
@@ -96,55 +102,67 @@ export default class DocMoverPlugin extends Plugin {
 
     private addDefaultBlockMenuItem(menu: Menu, blockElements: HTMLElement[], protyle: Protyle) {
         menu.addItem({
-            icon: "iconMove",
-            label: "Move referenced docs as childdocs and sort",
-            click: async () => {
-                const blockIds = [];
-                for (const blockElement of blockElements) {
-                    const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
-                        .map(el => el.getAttribute('data-id'));
-                    blockIds.push(...refs);
-                }
-                if (blockIds.length === 0) {
-                    showMessage("No references found");
-                    return;
-                }
-                await this.moveReferencedDocs(protyle.block.rootID, blockIds);
-            }
-        });
-        menu.addItem({
             icon: "iconSort",
-            label: "Only sort referenced childdocs",
-            click: async () => {
-                const blockIds = [];
-                for (const blockElement of blockElements) {
-                    const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
-                        .map(el => el.getAttribute('data-id'));
-                    blockIds.push(...refs);
+            label: "ChildDoc Organizer",
+            submenu: [
+                {
+                    icon: "iconMove",
+                    label: "Move referenced docs as childdocs and sort",
+                    click: async () => {
+                        const blockIds = [];
+                        for (const blockElement of blockElements) {
+                            const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
+                                .map(el => el.getAttribute('data-id'));
+                            blockIds.push(...refs);
+                        }
+                        if (blockIds.length === 0) {
+                            showMessage("No references found");
+                            return;
+                        }
+                        await this.moveReferencedDocs(protyle.block.rootID, blockIds);
+                    }
+                },
+                {
+                    icon: "iconSort",
+                    label: "Only sort referenced childdocs",
+                    click: async () => {
+                        const blockIds = [];
+                        for (const blockElement of blockElements) {
+                            const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
+                                .map(el => el.getAttribute('data-id'));
+                            blockIds.push(...refs);
+                        }
+                        if (blockIds.length === 0) {
+                            showMessage("No references found");
+                            return;
+                        }
+                        await this.moveReferencedDocs(protyle.block.rootID, blockIds, false, true);
+                    }
                 }
-                if (blockIds.length === 0) {
-                    showMessage("No references found");
-                    return;
-                }
-                await this.moveReferencedDocs(protyle.block.rootID, blockIds, false, true);
-            }
+            ]
         });
     }
 
     private async handleDocumentMenu({ detail }) {
         detail.menu.addItem({
-            icon: "iconMove",
-            label: "Move referenced docs as childdocs and sort",
-            click: async () => {
-                await this.moveReferencedDocs(detail.protyle.block.rootID);
-            }
-        });
-        detail.menu.addItem({
             icon: "iconSort",
-            label: "Only sort referenced childdocs",
-            click: async () => {
-                await this.moveReferencedDocs(detail.protyle.block.rootID, undefined, false, true);
-            }
+            label: "ChildDoc Organizer",
+            submenu: [
+                {
+                    icon: "iconMove",
+                    label: "Move referenced docs as childdocs and sort",
+                    click: async () => {
+                        await this.moveReferencedDocs(detail.protyle.block.rootID);
+                    }
+                },
+                {
+                    icon: "iconSort",
+                    label: "Only sort referenced childdocs",
+                    click: async () => {
+                        await this.moveReferencedDocs(detail.protyle.block.rootID, undefined, false, true);
+                    }
+                }
+            ]
         });
     }
 
@@ -198,7 +216,9 @@ export default class DocMoverPlugin extends Plugin {
             if (docsToMove.length > 0) {
                 await moveDocsByID(docsToMove, currentDocID);
                 movedCount = docsToMove.length;
+                await refreshSql();
             }
+
         }
 
         let sortedCount = 0;
@@ -265,7 +285,6 @@ export default class DocMoverPlugin extends Plugin {
             `;
             const docToSort_sql = await sql(sortQuery);
             const docsToSort = docToSort_sql.map(row => row.def_block_id);
-
             if (docsToSort.length > 0) {
                 const currentDoc = await getBlockByID(currentDocID);
                 const boxID = currentDoc.box;
@@ -305,7 +324,7 @@ export default class DocMoverPlugin extends Plugin {
             message.push(`Sorted ${sortedCount + unaffectedCount} documents (${sortedCount} affected, ${unaffectedCount} unaffected)`);
         }
         showMessage(message.length > 0 ? message.join(', ') : 'No documents were moved or sorted');
-        await refreshSql();
+
     }
 
     onLayoutReady() {
