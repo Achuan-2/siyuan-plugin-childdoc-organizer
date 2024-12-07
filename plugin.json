@@ -1,7 +1,7 @@
 {
-  "name": "siyuan-plugin-moc-toolbox",
+  "name": "siyuan-plugin-childDoc-organizer",
   "author": "Achuan-2",
-  "url": "https://github.com/Achuan-2/siyuan-plugin-moc-toolbox",
+  "url": "https://github.com/Achuan-2/siyuan-plugin-childDoc-organizer",
   "version": "0.0.1",
   "minAppVersion": "3.1.15",
   "backends": [
@@ -20,12 +20,12 @@
     "desktop-window"
   ],
   "displayName": {
-    "en_US": "Plugin sample with vite and svelte",
-    "zh_CN": "插件样例 vite + svelte 版"
+    "en_US": "ChildDoc Organizer",
+    "zh_CN": "子文档整理",
   },
   "description": {
-    "en_US": "SiYuan plugin sample with vite and svelte",
-    "zh_CN": "使用 vite 和 svelte 开发的思源插件样例"
+    "en_US": "Move referenced documents as child documents and support sorting child documents according to the order of block references",
+    "zh_CN": "移动引用的文档作为子文档，并支持根据块引顺序对子文档进行排序"
   },
   "readme": {
     "en_US": "README.md",
@@ -37,8 +37,13 @@
     ]
   },
   "keywords": [
-    "plugin",
-    "sample",
-    "插件样例"
+    "sort",
+    "排序",
+    "块引",
+    "子文档",
+    "整理",
+    "block_ref",
+    "child_doc",
+    "organizer"
   ]
 }
