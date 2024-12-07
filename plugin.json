@@ -1,7 +1,7 @@
 {
-  "name": "siyuan-plugin-childDoc-organizer",
+  "name": "siyuan-plugin-childoc-organizer",
   "author": "Achuan-2",
-  "url": "https://github.com/Achuan-2/siyuan-plugin-childDoc-organizer",
+  "url": "https://github.com/Achuan-2/siyuan-plugin-childoc-organizer",
   "version": "0.0.1",
   "minAppVersion": "3.1.15",
   "backends": [
