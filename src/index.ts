@@ -106,6 +106,24 @@ export default class DocMoverPlugin extends Plugin {
         return childDocs.filter(doc => !affectedDocIds.includes(doc.id)).length;
     }
 
+    private async getUnaffectedChildDocs(parentDocID: string, affectedDocIds: string[], sortJson: any): Promise<{id: string, sortValue: number}[]> {
+        const childDocsQuery = `
+            SELECT DISTINCT id 
+            FROM blocks 
+            WHERE type = 'd' 
+            AND path LIKE '%/${parentDocID}/%'
+            AND path NOT LIKE '%/${parentDocID}/%/%'
+        `;
+        const childDocs = await sql(childDocsQuery);
+        return childDocs
+            .filter(doc => !affectedDocIds.includes(doc.id))
+            .map(doc => ({
+                id: doc.id,
+                sortValue: sortJson[doc.id] || 0
+            }))
+            .sort((a, b) => a.sortValue - b.sortValue);
+    }
+
     private async moveReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false) {
         showMessage("Processing...");
         await refreshSql();
@@ -163,10 +181,16 @@ export default class DocMoverPlugin extends Plugin {
                 const boxID = currentDoc.box;
                 const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
                 
-                // Get count of unaffected child docs
-                const unaffectedCount = await this.getUnaffectedChildDocsCount(currentDocID, sortedRootIds);
+                // Get and sort unaffected docs
+                const unaffectedDocs = await this.getUnaffectedChildDocs(currentDocID, sortedRootIds, sortJson);
                 
-                // Apply sorting based on the original block order with offset
+                // Update sort values for unaffected docs
+                unaffectedDocs.forEach((doc, index) => {
+                    sortJson[doc.id] = index + 1;
+                });
+                
+                // Apply sorting for affected docs after unaffected ones
+                const unaffectedCount = unaffectedDocs.length;
                 sortedRootIds.forEach((id, index) => {
                     sortJson[id] = unaffectedCount + index + 1;
                 });
@@ -196,17 +220,20 @@ export default class DocMoverPlugin extends Plugin {
                 const boxID = currentDoc.box;
                 const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
                 
-                // Get count of unaffected child docs
-                const unaffectedCount = await this.getUnaffectedChildDocsCount(currentDocID, docsToSort);
+                // Get and sort unaffected docs
+                const unaffectedDocs = await this.getUnaffectedChildDocs(currentDocID, docsToSort, sortJson);
                 
-                const sortedResult = {};
+                // Update sort values for unaffected docs
+                unaffectedDocs.forEach((doc, index) => {
+                    sortJson[doc.id] = index + 1;
+                });
+                
+                // Update sort values for affected docs
+                const unaffectedCount = unaffectedDocs.length;
                 docsToSort.forEach((id, index) => {
-                    sortedResult[id] = unaffectedCount + index + 1;
+                    sortJson[id] = unaffectedCount + index + 1;
                 });
 
-                for (let id in sortedResult) {
-                    sortJson[id] = sortedResult[id];
-                }
                 await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
             }
         }
