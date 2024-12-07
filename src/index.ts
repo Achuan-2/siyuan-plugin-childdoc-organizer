@@ -119,13 +119,14 @@ export default class DocMoverPlugin extends Plugin {
         const docToMove_sql = await sql(moveQuery);
         const docsToMove = docToMove_sql.map(row => row.def_block_id);
 
-        let docsToSort: string[] = [];
-        
-        if (isAttributeView && blockIds) {
-            // For attribute view, use the order of blockIds directly
-            docsToSort = blockIds;
-        } else {
-            // Get both moved docs and existing child docs
+        if (docsToMove.length > 0) {
+            console.log(docToMove_sql)
+            await moveDocsByID(docsToMove, currentDocID);
+        }
+
+        // Skip sorting for attribute views
+        if (!isAttributeView) {
+            // Get docs to sort (both moved docs and existing child docs)
             const sortQuery = `
                 SELECT DISTINCT def_block_id
                 FROM refs
@@ -140,35 +141,38 @@ export default class DocMoverPlugin extends Plugin {
                 )
             `;
             const docToSort_sql = await sql(sortQuery);
-            docsToSort = docToSort_sql.map(row => row.def_block_id);
+            const docsToSort = docToSort_sql.map(row => row.def_block_id);
+
+            if (docsToSort.length > 0) {
+                const currentDoc = await getBlockByID(currentDocID);
+                const boxID = currentDoc.box;
+                const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
+                const sortedResult = {};
+                
+                docsToSort.forEach((id, index) => {
+                    sortedResult[id] = index + 1;
+                });
+
+                for (let id in sortedResult) {
+                    sortJson[id] = sortedResult[id];
+                }
+                await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
+
+                // Refresh file tree
+                let element = document.querySelector(`.file-tree li[data-node-id="${currentDocID}"] > .b3-list-item__toggle--hl`);
+                if (element) {
+                    element.click();
+                    element.click();
+                }
+            }
         }
 
-        if (docsToMove.length > 0) {
-            console.log(docToMove_sql)
-            const boxID = currentDoc.box;
-            const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
-            const sortedResult = {};
-            
-            docsToSort.forEach((id, index) => {
-                sortedResult[id] = index + 1;
-            });
-
-            for (let id in sortedResult) {
-                sortJson[id] = sortedResult[id];
-            }
-            await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
-
-            // 排序完之后需要刷新，刷新方式就是把文档树的当前文档子文档折叠再展开
-            let element = document.querySelector(`.file-tree li[data-node-id="${currentDocID}"] > .b3-list-item__toggle--hl`);
-            if (element) {
-                element.click();
-                element.click();
-            }
-        }
         // Show message
         const message = docsToMove.length > 0 
-            ? `Moved ${docsToMove.length} documents and sorted ${docsToSort.length} documents`
-            : `Sorted ${docsToSort.length} documents`;
+            ? isAttributeView 
+                ? `Moved ${docsToMove.length} documents`
+                : `Moved ${docsToMove.length} documents and sorted documents`
+            : `No documents were moved`;
         showMessage(message);
     }
 
