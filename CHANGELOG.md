@@ -1,112 +1,13 @@
-# Changelog
+## v0.0.1 / 2024.12.08
 
-## v0.3.5 2024-04-30
+* ✨功能1：支持对当前文档所有块引的文档、对当前选中的块（支持多选块、支持数据库）中块引的文档，进行移动到当前文档的子文档路径（备注：要移动数据库中的绑定文档作为子文档，需要只选中数据库块，文档块和多选块的移动功能会忽略数据库块）。
 
-* [Add `direction` to plugin method `Setting.addItem`](https://github.com/siyuan-note/siyuan/issues/11183)
+  ![1733597165660测试块引移动.webp](https://fastly.jsdelivr.net/gh/Achuan-2/PicBed@pic/assets/1733597165660%E6%B5%8B%E8%AF%95%E5%9D%97%E5%BC%95%E7%A7%BB%E5%8A%A8.webp)
+* ✨功能2：可以根据父文档对子文档块引的顺序，来排序子文档。
 
+  之前我开发的自定义排序增强插件可以根据名称来自动排序文档，还对自然排序进行了增强，支持对中文数字标题的排序，但我觉得还不够。于是让这个插件可以根据父文档对子文档的块引顺序进行排序！排序子文档更加自由！（备注：当数据库的排序会独立于块引文档的排序）
 
-## 0.3.4 2024-02-20
+  ![1733597029195测试子文档排序.webp](https://fastly.jsdelivr.net/gh/Achuan-2/PicBed@pic/assets/1733597029195%E6%B5%8B%E8%AF%95%E5%AD%90%E6%96%87%E6%A1%A3%E6%8E%92%E5%BA%8F.webp)
+* ✨功能3：可以多选块内容，快速块引创建子文档。你可以用列表块整理好子文档层级，然后用该插件用该列表快速创建子文档，子文档的层级关系会根据列表的层级关系来创建！注意，插件创建子文档的规则是一个段落块，创建一个文档，所以一个块放多行，也只是创建一个文档。
 
-* [Add plugin event bus `click-flashcard-action`](https://github.com/siyuan-note/siyuan/issues/10318)
-
-## 0.3.3 2024-01-24
-
-* Update dock icon class
-
-## 0.3.2 2024-01-09
-
-* [Add plugin `protyleOptions`](https://github.com/siyuan-note/siyuan/issues/10090)
-* [Add plugin api `uninstall`](https://github.com/siyuan-note/siyuan/issues/10063)
-* [Add plugin method `updateCards`](https://github.com/siyuan-note/siyuan/issues/10065)
-* [Add plugin function `lockScreen`](https://github.com/siyuan-note/siyuan/issues/10063)
-* [Add plugin event bus `lock-screen`](https://github.com/siyuan-note/siyuan/pull/9967)
-* [Add plugin event bus `open-menu-inbox`](https://github.com/siyuan-note/siyuan/pull/9967)
-
-
-## 0.3.1 2023-12-06
-
-* [Support `Dock Plugin` and `Command Palette` on mobile](https://github.com/siyuan-note/siyuan/issues/9926)
-
-## 0.3.0 2023-12-05
-
-* Upgrade Siyuan to 0.9.0
-* Support more platforms
-
-## 0.2.9 2023-11-28
-
-* [Add plugin method `openMobileFileById`](https://github.com/siyuan-note/siyuan/issues/9738)
-
-
-## 0.2.8 2023-11-15
-
-* [`resize` cannot be triggered after dragging to unpin the dock](https://github.com/siyuan-note/siyuan/issues/9640)
-
-## 0.2.7 2023-10-31
-
-* [Export `Constants` to plugin](https://github.com/siyuan-note/siyuan/issues/9555)
-* [Add plugin `app.appId`](https://github.com/siyuan-note/siyuan/issues/9538)
-* [Add plugin event bus `switch-protyle`](https://github.com/siyuan-note/siyuan/issues/9454)
-
-## 0.2.6 2023-10-24
-
-* [Deprecated `loaded-protyle` use `loaded-protyle-static` instead](https://github.com/siyuan-note/siyuan/issues/9468)
-
-## 0.2.5 2023-10-10
-
-* [Add plugin event bus `open-menu-doctree`](https://github.com/siyuan-note/siyuan/issues/9351)
-
-## 0.2.4 2023-09-19
-
-* Supports use in windows
-* [Add plugin function `transaction`](https://github.com/siyuan-note/siyuan/issues/9172)
-
-## 0.2.3 2023-09-05
-
-* [Add plugin function `transaction`](https://github.com/siyuan-note/siyuan/issues/9172)
-* [Plugin API add openWindow and command.globalCallback](https://github.com/siyuan-note/siyuan/issues/9032)
-
-## 0.2.2 2023-08-29
-
-* [Add plugin event bus `destroy-protyle`](https://github.com/siyuan-note/siyuan/issues/9033)
-* [Add plugin event bus `loaded-protyle-dynamic`](https://github.com/siyuan-note/siyuan/issues/9021)
-
-## 0.2.1 2023-08-21
-
-* [Plugin API add getOpenedTab method](https://github.com/siyuan-note/siyuan/issues/9002)
-* [Plugin API custom.fn => custom.id in openTab](https://github.com/siyuan-note/siyuan/issues/8944)
-
-## 0.2.0 2023-08-15
-
-* [Add plugin event bus `open-siyuan-url-plugin` and `open-siyuan-url-block`](https://github.com/siyuan-note/siyuan/pull/8927)
-
-
-## 0.1.12 2023-08-01
-
-* Upgrade siyuan to 0.7.9
-
-## 0.1.11
-
-* [Add `input-search` event bus to plugins](https://github.com/siyuan-note/siyuan/issues/8725)
-
-
-## 0.1.10
-
-* [Add `bind this` example for eventBus in plugins](https://github.com/siyuan-note/siyuan/issues/8668)
-* [Add `open-menu-breadcrumbmore` event bus to plugins](https://github.com/siyuan-note/siyuan/issues/8666)
-
-## 0.1.9
-
-* [Add `open-menu-xxx` event bus for plugins ](https://github.com/siyuan-note/siyuan/issues/8617)
-
-## 0.1.8
-
-* [Add protyleSlash to the plugin](https://github.com/siyuan-note/siyuan/issues/8599)
-* [Add plugin API protyle](https://github.com/siyuan-note/siyuan/issues/8445)
-
-## 0.1.7
-
-* [Support build js and json](https://github.com/siyuan-note/plugin-sample/pull/8)
-
-## 0.1.6
-
-* add `fetchPost` example
+  ![1733596765158测试根据列表快速生成子文档层级.webp](https://fastly.jsdelivr.net/gh/Achuan-2/PicBed@pic/assets/1733596765158%E6%B5%8B%E8%AF%95%E6%A0%B9%E6%8D%AE%E5%88%97%E8%A1%A8%E5%BF%AB%E9%80%9F%E7%94%9F%E6%88%90%E5%AD%90%E6%96%87%E6%A1%A3%E5%B1%82%E7%BA%A7.webp)

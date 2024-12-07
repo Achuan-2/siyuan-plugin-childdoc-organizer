@@ -65,11 +65,11 @@ export default class DocMoverPlugin extends Plugin {
         if (this.isAttributeView(block)) {
             detail.menu.addItem({
                 icon: "iconSort",
-                label: "ChildDoc Organizer",
+                label: this.i18n.childDocOrganizer,
                 submenu: [
                     {
                         icon: "iconMove",
-                        label: "Move referenced docs as childdocs and sort",
+                        label: this.i18n.moveAndSort,
                         click: async () => {
                             const blockIds = await this.getBoundBlockIds(block);
                             if (blockIds.length === 0) {
@@ -81,7 +81,7 @@ export default class DocMoverPlugin extends Plugin {
                     },
                     {
                         icon: "iconSort",
-                        label: "Only sort referenced childdocs",
+                        label: this.i18n.onlySort,
                         click: async () => {
                             const blockIds = await this.getBoundBlockIds(block);
                             if (blockIds.length === 0) {
@@ -267,18 +267,18 @@ export default class DocMoverPlugin extends Plugin {
     private async handleDocumentMenu({ detail }) {
         detail.menu.addItem({
             icon: "iconSort",
-            label: "ChildDoc Organizer",
+            label: this.i18n.childDocOrganizer,
             submenu: [
                 {
                     icon: "iconMove",
-                    label: "Move referenced docs as childdocs and sort",
+                    label: this.i18n.moveAndSort,
                     click: async () => {
                         await this.moveAndSortReferencedDocs(detail.protyle.block.rootID);
                     }
                 },
                 {
                     icon: "iconSort",
-                    label: "Only sort referenced childdocs",
+                    label: this.i18n.onlySort,
                     click: async () => {
                         await this.moveAndSortReferencedDocs(detail.protyle.block.rootID, undefined, false, true);
                     }
