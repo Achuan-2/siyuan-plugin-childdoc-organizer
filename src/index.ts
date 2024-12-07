@@ -123,10 +123,43 @@ export default class DocMoverPlugin extends Plugin {
             console.log(docToMove_sql)
             await moveDocsByID(docsToMove, currentDocID);
         }
+        // Handle sorting
+        if (isAttributeView && blockIds && blockIds.length > 0) {
+            // Get root IDs for the bound blocks in order
+            const rootIdsQuery = `
+                SELECT DISTINCT id, root_id as def_block_id
+                FROM blocks 
+                WHERE id IN (${blockIds.map(id => `'${id}'`).join(',')})
+                AND type = 'd'
+                AND (
+                    id IN (${docsToMove.map(id => `'${id}'`).join(',') || "''"})
+                    OR (
+                        path LIKE '%/${currentDocID}/%'
+                        AND path NOT LIKE '%/${currentDocID}/%/%'
+                    )
+                )
+            `;
+            const blockRoots = await sql(rootIdsQuery);
+            
+            // For document blocks, we can use the id directly since id = root_id
+            const sortedRootIds = blockIds
+                .filter(id => blockRoots.some(row => row.id === id))
+                .map(id => id);
 
-        // Skip sorting for attribute views
-        if (!isAttributeView) {
-            // Get docs to sort (both moved docs and existing child docs)
+            if (sortedRootIds.length > 0) {
+                const currentDoc = await getBlockByID(currentDocID);
+                const boxID = currentDoc.box;
+                const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
+                
+                // Apply sorting based on the original block order
+                sortedRootIds.forEach((id, index) => {
+                    sortJson[id] = index + 1;
+                });
+
+                await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
+            }
+        } else if (!isAttributeView) {
+            // Original sorting logic for normal documents
             const sortQuery = `
                 SELECT DISTINCT def_block_id
                 FROM refs
@@ -157,14 +190,14 @@ export default class DocMoverPlugin extends Plugin {
                     sortJson[id] = sortedResult[id];
                 }
                 await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
-
-                // Refresh file tree
-                let element = document.querySelector(`.file-tree li[data-node-id="${currentDocID}"] > .b3-list-item__toggle--hl`);
-                if (element) {
-                    element.click();
-                    element.click();
-                }
             }
+        }
+
+        // Refresh file tree if needed
+        let element = document.querySelector(`.file-tree li[data-node-id="${currentDocID}"] > .b3-list-item__toggle--hl`);
+        if (element) {
+            element.click();
+            element.click();
         }
 
         // Show message
