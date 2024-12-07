@@ -25,24 +25,61 @@ export default class DocMoverPlugin extends Plugin {
         this.eventBus.on('click-blockicon', this.handleBlockMenu.bind(this));
     }
 
+    private isAttributeView(element: HTMLElement): boolean {
+        return element.getAttribute('data-type') === 'NodeAttributeView';
+    }
+
+    private getBoundBlockIds(attributeView: HTMLElement): string[] {
+        return Array.from(
+            attributeView.querySelectorAll('div.av__cell[data-block-id]:not([data-detached="true"])')
+        ).map(el => el.getAttribute('data-block-id'));
+    }
+
     private async handleBlockMenu({ detail }) {
-        detail.menu.addItem({
+        // Only handle single block selection
+        if (detail.blockElements.length !== 1) {
+            return this.addDefaultBlockMenuItem(detail.menu, detail.blockElements, detail.protyle);
+        }
+
+        const block = detail.blockElements[0];
+        
+        // Handle attribute view specifically
+        if (this.isAttributeView(block)) {
+            detail.menu.addItem({
+                icon: "iconMove",
+                label: "Move bound docs and sort",
+                click: async () => {
+                    const blockIds = this.getBoundBlockIds(block);
+                    if (blockIds.length === 0) {
+                        showMessage("No bound blocks found");
+                        return;
+                    }
+                    await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds, true);
+                }
+            });
+            return;
+        }
+
+        // Add default menu item for other blocks
+        this.addDefaultBlockMenuItem(detail.menu, detail.blockElements, detail.protyle);
+    }
+
+    private addDefaultBlockMenuItem(menu: Menu, blockElements: HTMLElement[], protyle: Protyle) {
+        menu.addItem({
             icon: "iconMove",
             label: "Move referenced docs and sort",
             click: async () => {
                 const blockIds = [];
-                for (const blockElement of detail.blockElements) {
+                for (const blockElement of blockElements) {
                     const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
                         .map(el => el.getAttribute('data-id'));
                     blockIds.push(...refs);
                 }
-                console.log(blockIds);
                 if (blockIds.length === 0) {
                     showMessage("No references found");
                     return;
                 }
-
-                await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds);
+                await this.moveReferencedDocs(protyle.block.rootID, blockIds);
             }
         });
     }
@@ -57,7 +94,7 @@ export default class DocMoverPlugin extends Plugin {
         });
     }
 
-    private async moveReferencedDocs(currentDocID: string, blockIds?: string[]) {
+    private async moveReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false) {
         showMessage("Processing...");
         await refreshSql();
 
@@ -82,32 +119,32 @@ export default class DocMoverPlugin extends Plugin {
         const docToMove_sql = await sql(moveQuery);
         const docsToMove = docToMove_sql.map(row => row.def_block_id);
 
-        // Get both moved docs and existing child docs in one query
-        const sortQuery = `
-            SELECT DISTINCT def_block_id
-            FROM refs
-            WHERE root_id = '${currentDocID}'
-            AND def_block_id = def_block_root_id
-            AND (
-                def_block_id IN (${docsToMove.map(id => `'${id}'`).join(',') || "''"})
-                OR (
-                    def_block_path LIKE '%/${currentDocID}/%'
-                    AND def_block_path NOT LIKE '%/${currentDocID}/%/%'
+        let docsToSort: string[] = [];
+        
+        if (isAttributeView && blockIds) {
+            // For attribute view, use the order of blockIds directly
+            docsToSort = blockIds;
+        } else {
+            // Get both moved docs and existing child docs
+            const sortQuery = `
+                SELECT DISTINCT def_block_id
+                FROM refs
+                WHERE root_id = '${currentDocID}'
+                AND def_block_id = def_block_root_id
+                AND (
+                    def_block_id IN (${docsToMove.map(id => `'${id}'`).join(',') || "''"})
+                    OR (
+                        def_block_path LIKE '%/${currentDocID}/%'
+                        AND def_block_path NOT LIKE '%/${currentDocID}/%/%'
+                    )
                 )
-            )
-        `;
+            `;
+            const docToSort_sql = await sql(sortQuery);
+            docsToSort = docToSort_sql.map(row => row.def_block_id);
+        }
 
         if (docsToMove.length > 0) {
             console.log(docToMove_sql)
-            await moveDocsByID(docsToMove, currentDocID);
-        }
-
-        const docToSort_sql = await sql(sortQuery);
-        const docsToSort = docToSort_sql.map(row => row.def_block_id);
-
-        // Sort all referenced documents
-        if (docsToSort.length > 0) {
-            const currentDoc = await getBlockByID(currentDocID);
             const boxID = currentDoc.box;
             const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
             const sortedResult = {};

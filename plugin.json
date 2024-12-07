@@ -21,7 +21,7 @@
   ],
   "displayName": {
     "en_US": "ChildDoc Organizer",
-    "zh_CN": "子文档整理",
+    "zh_CN": "子文档整理"
   },
   "description": {
     "en_US": "Move referenced documents as child documents and support sorting child documents according to the order of block references",
