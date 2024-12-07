@@ -54,6 +54,7 @@ export default class DocMoverPlugin extends Plugin {
                         showMessage("No bound blocks found");
                         return;
                     }
+                    console.log(blockIds);
                     await this.moveReferencedDocs(detail.protyle.block.rootID, blockIds, true);
                 }
             });
@@ -94,17 +95,6 @@ export default class DocMoverPlugin extends Plugin {
         });
     }
 
-    private async getUnaffectedChildDocsCount(parentDocID: string, affectedDocIds: string[]): Promise<number> {
-        const childDocsQuery = `
-            SELECT DISTINCT id 
-            FROM blocks 
-            WHERE type = 'd' 
-            AND path LIKE '%/${parentDocID}/%'
-            AND path NOT LIKE '%/${parentDocID}/%/%'
-        `;
-        const childDocs = await sql(childDocsQuery);
-        return childDocs.filter(doc => !affectedDocIds.includes(doc.id)).length;
-    }
 
     private async getUnaffectedChildDocs(parentDocID: string, affectedDocIds: string[], sortJson: any): Promise<{id: string, sortValue: number}[]> {
         const childDocsQuery = `
