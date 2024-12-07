@@ -100,47 +100,115 @@ export default class DocMoverPlugin extends Plugin {
         this.addDefaultBlockMenuItem(detail.menu, detail.blockElements, detail.protyle);
     }
 
-    private async createChildDocsFromParagraphs(block: HTMLElement, parentDocID: string) {
-        // If block itself is a paragraph, use it directly
-        const paragraphElements = block.classList.contains('p') ?
-            [block] :
-            Array.from(block.querySelectorAll('div.p'));
+    private hasBlockRef(element: HTMLElement): boolean {
+        return element.querySelector('span[data-type="block-ref"]') !== null;
+    }
 
-        const paragraphInfos = paragraphElements
-            .map(el => ({
-                content: el.querySelector('div:first-child')?.textContent?.trim() || '',
-                id: el.getAttribute('data-node-id')
-            }))
-            .filter(info => info.content.length > 0);
+    private async processListItem(
+        item: HTMLElement,
+        parentDocID: string,
+        boxID: string,
+        parentPath: string
+    ): Promise<string | null> {
+        const paragraph = item.querySelector('div.p');
+        if (!paragraph) return null;
 
-        if (paragraphInfos.length === 0) {
-            showMessage("No valid paragraphs found");
-            return;
+        let currentDocID = parentDocID;
+        let currentPath = parentPath;
+        
+        // If no block reference exists, create new doc and reference
+        if (!this.hasBlockRef(paragraph)) {
+            const content = paragraph.querySelector('div:first-child')?.textContent?.trim() || '';
+            const paragraphId = paragraph.getAttribute('data-node-id');
+            
+            if (content && paragraphId) {
+                currentDocID = await createDocWithMd(boxID, `${parentPath}/${content}`, "");
+                const refMd = `<span data-type="block-ref" data-id="${currentDocID}" data-subtype="d">${content}</span>`;
+                await updateBlock("markdown", refMd, paragraphId);
+                currentPath = `${parentPath}/${content}`;
+            }
+        } else {
+            // If block reference exists, get its target doc ID for nested processing
+            const blockRef = paragraph.querySelector('span[data-type="block-ref"]');
+            const refDocID = blockRef?.getAttribute('data-id');
+            if (refDocID) {
+                currentDocID = refDocID;
+                const refDoc = await getBlockByID(refDocID);
+                currentPath = refDoc.hpath;
+            }
         }
-    
-        showMessage(`Creating ${paragraphInfos.length} documents...`);
-    
-        // Get parent document info for creating child docs
+
+        // Always process nested list if it exists, using either new doc ID or referenced doc ID
+        const nestedList = item.querySelector(':scope > div.list');
+        if (nestedList) {
+            const listItems = Array.from(nestedList.querySelectorAll(':scope > div.li'));
+            for (const nestedItem of listItems) {
+                await this.processListItem(nestedItem, currentDocID, boxID, currentPath);
+            }
+        }
+
+        return currentDocID;
+    }
+
+    private async createChildDocsFromParagraphs(block: HTMLElement, parentDocID: string) {
         const parentDoc = await getBlockByID(parentDocID);
         const boxID = parentDoc.box;
         const parentPath = parentDoc.hpath;
-    
-        for (const { content, id } of paragraphInfos) {
-            // Create new document
-            try {
+
+        // Handle single paragraph block
+        if (block.classList.contains('p')) {
+            // Skip if block already contains a block reference
+            if (this.hasBlockRef(block)) return;
+
+            const content = block.querySelector('div:first-child')?.textContent?.trim() || '';
+            const id = block.getAttribute('data-node-id');
+            
+            if (content && id) {
                 const docID = await createDocWithMd(boxID, `${parentPath}/${content}`, "");
-                
-                // Replace paragraph content with block reference
                 const refMd = `<span data-type="block-ref" data-id="${docID}" data-subtype="d">${content}</span>`;
                 await updateBlock("markdown", refMd, id);
-            } catch (e) {
-                console.error(`Failed to create document for "${content}"`, e);
+            }
+            return;
+        }
+
+        // Handle list block
+        if (block.classList.contains('list')) {
+            const listItems = Array.from(block.querySelectorAll(':scope > div.li'));
+            for (const item of listItems) {
+                await this.processListItem(item, parentDocID, boxID, parentPath);
+            }
+            return;
+        }
+
+        // Handle block containing multiple paragraphs
+        const paragraphElements = Array.from(block.querySelectorAll('div.p'));
+        if (paragraphElements.length === 0) {
+            showMessage("No valid paragraphs found");
+            return;
+        }
+
+        showMessage(`Creating ${paragraphElements.length} documents...`);
+
+        for (const paragraph of paragraphElements) {
+            // Skip if paragraph already contains a block reference
+            if (this.hasBlockRef(paragraph)) continue;
+
+            const content = paragraph.querySelector('div:first-child')?.textContent?.trim() || '';
+            const id = paragraph.getAttribute('data-node-id');
+            
+            if (content && id) {
+                try {
+                    const docID = await createDocWithMd(boxID, `${parentPath}/${content}`, "");
+                    const refMd = `<span data-type="block-ref" data-id="${docID}" data-subtype="d">${content}</span>`;
+                    await updateBlock("markdown", refMd, id);
+                } catch (e) {
+                    console.error(`Failed to create document for "${content}"`, e);
+                }
             }
         }
-    
-        showMessage(`Created ${paragraphInfos.length} documents`);
-    }
 
+        showMessage(`Created ${paragraphElements.length} documents`);
+    }
 
     private addDefaultBlockMenuItem(menu: Menu, blockElements: HTMLElement[], protyle: Protyle) {
         menu.addItem({
