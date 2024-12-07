@@ -94,6 +94,18 @@ export default class DocMoverPlugin extends Plugin {
         });
     }
 
+    private async getUnaffectedChildDocsCount(parentDocID: string, affectedDocIds: string[]): Promise<number> {
+        const childDocsQuery = `
+            SELECT DISTINCT id 
+            FROM blocks 
+            WHERE type = 'd' 
+            AND path LIKE '%/${parentDocID}/%'
+            AND path NOT LIKE '%/${parentDocID}/%/%'
+        `;
+        const childDocs = await sql(childDocsQuery);
+        return childDocs.filter(doc => !affectedDocIds.includes(doc.id)).length;
+    }
+
     private async moveReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false) {
         showMessage("Processing...");
         await refreshSql();
@@ -151,9 +163,12 @@ export default class DocMoverPlugin extends Plugin {
                 const boxID = currentDoc.box;
                 const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
                 
-                // Apply sorting based on the original block order
+                // Get count of unaffected child docs
+                const unaffectedCount = await this.getUnaffectedChildDocsCount(currentDocID, sortedRootIds);
+                
+                // Apply sorting based on the original block order with offset
                 sortedRootIds.forEach((id, index) => {
-                    sortJson[id] = index + 1;
+                    sortJson[id] = unaffectedCount + index + 1;
                 });
 
                 await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
@@ -180,10 +195,13 @@ export default class DocMoverPlugin extends Plugin {
                 const currentDoc = await getBlockByID(currentDocID);
                 const boxID = currentDoc.box;
                 const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
-                const sortedResult = {};
                 
+                // Get count of unaffected child docs
+                const unaffectedCount = await this.getUnaffectedChildDocsCount(currentDocID, docsToSort);
+                
+                const sortedResult = {};
                 docsToSort.forEach((id, index) => {
-                    sortedResult[id] = index + 1;
+                    sortedResult[id] = unaffectedCount + index + 1;
                 });
 
                 for (let id in sortedResult) {
