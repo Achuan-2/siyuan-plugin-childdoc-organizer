@@ -6,6 +6,7 @@ import {
     Menu,
     IModel,
     Protyle,
+    fetchSyncPost,
 } from "siyuan";
 import "@/index.scss";
 import { SettingUtils } from "./libs/setting-utils";
@@ -29,10 +30,27 @@ export default class DocMoverPlugin extends Plugin {
         return element.getAttribute('data-type') === 'NodeAttributeView';
     }
 
-    private getBoundBlockIds(attributeView: HTMLElement): string[] {
-        return Array.from(
-            attributeView.querySelectorAll('div.av__cell[data-block-id]:not([data-detached="true"])')
-        ).map(el => el.getAttribute('data-block-id'));
+    private getAttributeViewIDs(element: HTMLElement): { avID: string, viewID: string } {
+        return {
+            avID: element.getAttribute('data-av-id'),
+            viewID: element.getAttribute('custom-sy-av-view')
+        };
+    }
+
+    private async getAllBoundBlockIds(avID: string, viewID: string): Promise<string[]> {
+        const response = await fetchSyncPost("/api/av/renderAttributeView", {
+            id: avID,
+            viewID: viewID,
+            pageSize: 9999999,
+            page: 1
+        });
+        
+        return response.data.view.rows.map(item => item.id);
+    }
+
+    private async getBoundBlockIds(attributeView: HTMLElement): Promise<string[]> {
+        const { avID, viewID } = this.getAttributeViewIDs(attributeView);
+        return await this.getAllBoundBlockIds(avID, viewID);
     }
 
     private async handleBlockMenu({ detail }) {
@@ -49,7 +67,8 @@ export default class DocMoverPlugin extends Plugin {
                 icon: "iconMove",
                 label: "Move bound docs and sort",
                 click: async () => {
-                    const blockIds = this.getBoundBlockIds(block);
+                    const blockIds = await this.getBoundBlockIds(block);
+                    console.log(blockIds);
                     if (blockIds.length === 0) {
                         showMessage("No bound blocks found");
                         return;
@@ -139,10 +158,16 @@ export default class DocMoverPlugin extends Plugin {
         const docToMove_sql = await sql(moveQuery);
         const docsToMove = docToMove_sql.map(row => row.def_block_id);
 
+        let movedCount = 0;
         if (docsToMove.length > 0) {
             console.log(docToMove_sql)
             await moveDocsByID(docsToMove, currentDocID);
+            movedCount = docsToMove.length;
         }
+
+        let sortedCount = 0;
+        let unaffectedCount = 0;
+        
         // Handle sorting
         if (isAttributeView && blockIds && blockIds.length > 0) {
             // Get root IDs for the bound blocks in order
@@ -171,16 +196,16 @@ export default class DocMoverPlugin extends Plugin {
                 const boxID = currentDoc.box;
                 const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
                 
-                // Get and sort unaffected docs
                 const unaffectedDocs = await this.getUnaffectedChildDocs(currentDocID, sortedRootIds, sortJson);
+                sortedCount = sortedRootIds.length;
                 
-                // Update sort values for unaffected docs
+                // Get and sort unaffected docs
                 unaffectedDocs.forEach((doc, index) => {
                     sortJson[doc.id] = index + 1;
                 });
                 
                 // Apply sorting for affected docs after unaffected ones
-                const unaffectedCount = unaffectedDocs.length;
+                unaffectedCount = unaffectedDocs.length;
                 sortedRootIds.forEach((id, index) => {
                     sortJson[id] = unaffectedCount + index + 1;
                 });
@@ -210,16 +235,16 @@ export default class DocMoverPlugin extends Plugin {
                 const boxID = currentDoc.box;
                 const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
                 
-                // Get and sort unaffected docs
                 const unaffectedDocs = await this.getUnaffectedChildDocs(currentDocID, docsToSort, sortJson);
+                sortedCount = docsToSort.length;
                 
-                // Update sort values for unaffected docs
+                // Get and sort unaffected docs
                 unaffectedDocs.forEach((doc, index) => {
                     sortJson[doc.id] = index + 1;
                 });
                 
                 // Update sort values for affected docs
-                const unaffectedCount = unaffectedDocs.length;
+                unaffectedCount = unaffectedDocs.length;
                 docsToSort.forEach((id, index) => {
                     sortJson[id] = unaffectedCount + index + 1;
                 });
@@ -235,13 +260,15 @@ export default class DocMoverPlugin extends Plugin {
             element.click();
         }
 
-        // Show message
-        const message = docsToMove.length > 0 
-            ? isAttributeView 
-                ? `Moved ${docsToMove.length} documents`
-                : `Moved ${docsToMove.length} documents and sorted documents`
-            : `No documents were moved`;
-        showMessage(message);
+        // Show detailed message
+        let message = [];
+        if (movedCount > 0) {
+            message.push(`Moved ${movedCount} documents`);
+        }
+        if (sortedCount > 0 || unaffectedCount > 0) {
+            message.push(`Sorted ${sortedCount + unaffectedCount} documents (${sortedCount} affected, ${unaffectedCount} unaffected)`);
+        }
+        showMessage(message.length > 0 ? message.join(', ') : 'No documents were moved or sorted');
     }
 
     onLayoutReady() {
