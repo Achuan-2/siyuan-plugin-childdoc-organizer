@@ -24,8 +24,8 @@
     "zh_CN": "子文档整理"
   },
   "description": {
-    "en_US": "Move referenced documents as child documents and support sorting child documents according to the order of block references",
-    "zh_CN": "移动引用的文档作为子文档，并支持根据块引顺序对子文档进行排序"
+    "en_US": "Simplify the steps of creating, archiving, and sorting child documents in SiYuan",
+    "zh_CN": "简化思源笔记子文档创建、子文档归档、子文档排序等步骤"
   },
   "readme": {
     "en_US": "README.md",
