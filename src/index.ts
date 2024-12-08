@@ -22,6 +22,8 @@ export default class DocMoverPlugin extends Plugin {
     async onload() {
         // 文档块标添加菜单
         this.eventBus.on('click-editortitleicon', this.handleDocumentMenu.bind(this));
+        // 文档树添加菜单
+        this.eventBus.on("open-menu-doctree", this.handleFiletreeMenu.bind(this));
         // 块菜单添加菜单
         this.eventBus.on('click-blockicon', this.handleBlockMenu.bind(this));
     }
@@ -264,6 +266,49 @@ export default class DocMoverPlugin extends Plugin {
         });
     }
 
+    private async handleFiletreeMenu({ detail }) {
+        const elements = Array.from(detail.elements); // 将 NodeList 或其他集合转换为数组
+        if (elements.length === 0) return;
+
+        // Check if any element is notebook root
+        const hasNotebook = elements.some((element: HTMLElement) => 
+            element.getAttribute("data-type") === "navigation-root"
+        );
+
+        if (!hasNotebook) {
+            detail.menu.addItem({
+                icon: "iconSort",
+                label: this.i18n.childDocOrganizer,
+                submenu: [
+                    {
+                        icon: "iconMove",
+                        label: this.i18n.moveAndSort,
+                        click: async () => {
+                            for (const element of elements) {
+                                const id = element.getAttribute("data-node-id");
+                                console.log(id)
+                                if (id) {
+                                    await this.moveAndSortReferencedDocs(id);
+                                }
+                            }
+                        }
+                    },
+                    {
+                        icon: "iconSort",
+                        label: this.i18n.onlySort,
+                        click: async () => {
+                            for (const element of elements) {
+                                const id = element.getAttribute("data-node-id");
+                                if (id) {
+                                    await this.moveAndSortReferencedDocs(id, undefined, false, true);
+                                }
+                            }
+                        }
+                    }
+                ]
+            });
+        }
+    }
     private async handleDocumentMenu({ detail }) {
         detail.menu.addItem({
             icon: "iconSort",
