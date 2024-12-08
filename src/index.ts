@@ -505,7 +505,7 @@ export default class DocMoverPlugin extends Plugin {
         const childDocsQuery = `
             SELECT b.id, b.path, r.root_id as parent_id
             FROM refs r
-            LEFT JOIN blocks b ON b.id = r.def_block_id
+            JOIN blocks b ON b.id = r.def_block_id
             WHERE b.type = 'd' 
             AND b.path LIKE '%/${parentDocID}/%'
             AND r.root_id = '${parentDocID}'
