@@ -155,6 +155,7 @@ export default class DocMoverPlugin extends Plugin {
     }
 
     private async createChildDocsFromParagraphs(block: HTMLElement, parentDocID: string) {
+
         const parentDoc = await getBlockByID(parentDocID);
         const boxID = parentDoc.box;
         const parentPath = parentDoc.hpath;
@@ -223,9 +224,12 @@ export default class DocMoverPlugin extends Plugin {
                     icon: "iconAdd",
                     label: this.i18n.createFromParagraphs,
                     click: async () => {
+                        this.showLoadingDialog(this.i18n.processing);
+
                         for (const blockElement of blockElements) {
                             await this.createChildDocsFromParagraphs(blockElement, protyle.block.rootID);
                         }
+
                         // sort referenced docs after creating child docs
                         await this.multiLevelSort(protyle.block.rootID);
                     }
@@ -271,7 +275,6 @@ export default class DocMoverPlugin extends Plugin {
                         click: async () => {
                             for (const element of elements) {
                                 const id = element.getAttribute("data-node-id");
-                                console.log(id)
                                 if (id) {
                                     await this.moveAndSortReferencedDocs(id);
                                 }
@@ -383,8 +386,6 @@ export default class DocMoverPlugin extends Plugin {
     private async moveAndSortReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false, onlySort: boolean = false) {
         this.showLoadingDialog(this.i18n.processing);
         await refreshSql();
-        console.log(onlySort)
-        console.log(onlySort)
         let movedCount = 0;
         const docsToMove: string[] = [];
         if (!onlySort) {
@@ -407,7 +408,6 @@ export default class DocMoverPlugin extends Plugin {
 
             const docToMove_sql = await sql(moveQuery);
             docsToMove.push(...docToMove_sql.map(row => row.def_block_id));
-            console.log(docsToMove)
             if (docsToMove.length > 0) {
                 await moveDocsByID(docsToMove, currentDocID);
                 movedCount = docsToMove.length;
@@ -556,7 +556,6 @@ export default class DocMoverPlugin extends Plugin {
                 path: doc.path
             });
         });
-        console.log(groupedDocs)
         // Sort each group and update sort.json
         const currentDoc = await getBlockByID(parentDocID);
         const boxID = currentDoc.box;
