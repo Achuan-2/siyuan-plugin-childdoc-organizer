@@ -353,38 +353,36 @@ export default class DocMoverPlugin extends Plugin {
     private async moveAndSortReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false, onlySort: boolean = false) {
         showMessage(this.i18n.processing);
         await refreshSql();
-
+        console.log(onlySort)
+        console.log(onlySort)
         let movedCount = 0;
         const docsToMove: string[] = [];
-
         if (!onlySort) {
-            let moveQuery = `
-                SELECT DISTINCT def_block_id 
-                FROM refs 
-                WHERE root_id = '${currentDocID}' 
-                AND def_block_id = def_block_root_id
-                AND def_block_path NOT LIKE '%${currentDocID}%'
-            `;
-
-            if (blockIds && blockIds.length > 0) {
-                moveQuery = `
+            const moveQuery = blockIds && blockIds.length > 0 
+                ? `
                     SELECT DISTINCT root_id as def_block_id
                     FROM blocks 
                     WHERE id IN (${blockIds.map(id => `'${id}'`).join(',')})
                     AND type = 'd'
                     AND path NOT LIKE '%${currentDocID}%'
+                `
+                : `
+                    SELECT DISTINCT r.def_block_id 
+                    FROM refs r
+                    JOIN blocks b ON r.def_block_id = b.id
+                    WHERE r.root_id = '${currentDocID}' 
+                    AND r.def_block_id = r.def_block_root_id
+                    AND b.path NOT LIKE '%${currentDocID}%'
                 `;
-            }
 
             const docToMove_sql = await sql(moveQuery);
             docsToMove.push(...docToMove_sql.map(row => row.def_block_id));
-
+            console.log(docsToMove)
             if (docsToMove.length > 0) {
                 await moveDocsByID(docsToMove, currentDocID);
                 movedCount = docsToMove.length;
                 await refreshSql();
             }
-
         }
 
         let sortedCount = 0;
