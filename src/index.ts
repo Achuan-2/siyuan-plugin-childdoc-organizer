@@ -218,40 +218,6 @@ export default class DocMoverPlugin extends Plugin {
             label: this.i18n.childDocOrganizer,
             submenu: [
                 {
-                    icon: "iconMove",
-                    label: this.i18n.moveAndSort,
-                    click: async () => {
-                        const blockIds = [];
-                        for (const blockElement of blockElements) {
-                            const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
-                                .map(el => el.getAttribute('data-id'));
-                            blockIds.push(...refs);
-                        }
-                        if (blockIds.length === 0) {
-                            showMessage(this.i18n.noReferencesFound);
-                            return;
-                        }
-                        await this.moveAndSortReferencedDocs(protyle.block.rootID, blockIds);
-                    }
-                },
-                {
-                    icon: "iconSort",
-                    label: this.i18n.onlySort,
-                    click: async () => {
-                        const blockIds = [];
-                        for (const blockElement of blockElements) {
-                            const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
-                                .map(el => el.getAttribute('data-id'));
-                            blockIds.push(...refs);
-                        }
-                        if (blockIds.length === 0) {
-                            showMessage("No references found");
-                            return;
-                        }
-                        await this.moveAndSortReferencedDocs(protyle.block.rootID, blockIds, false, true);
-                    }
-                },
-                {
                     icon: "iconAdd",
                     label: this.i18n.createFromParagraphs,
                     click: async () => {
@@ -259,7 +225,24 @@ export default class DocMoverPlugin extends Plugin {
                             await this.createChildDocsFromParagraphs(blockElement, protyle.block.rootID);
                         }
                         // sort referenced docs after creating child docs
-                        await this.moveAndSortReferencedDocs(protyle.block.rootID, undefined, false, true);
+                        await this.multiLevelSort(protyle.block.rootID);
+                    }
+                },
+                {
+                    icon: "iconMove",
+                    label: this.i18n.moveAndSort,
+                    click: async () => {
+                        const blockIds = [];
+                        for (const blockElement of blockElements) {
+                            const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
+                                .map(el => el.getAttribute('data-id'));
+                                blockIds.push(...refs);
+                            }
+                            if (blockIds.length === 0) {
+                                showMessage(this.i18n.noReferencesFound);
+                                return;
+                            }
+                            await this.moveAndSortReferencedDocs(protyle.block.rootID, blockIds);
                     }
                 }
             ]
@@ -304,11 +287,24 @@ export default class DocMoverPlugin extends Plugin {
                                 }
                             }
                         }
+                    },
+                    {
+                        icon: "iconSort",
+                        label: this.i18n.multiLevelSort,
+                        click: async () => {
+                            for (const element of elements) {
+                                const id = element.getAttribute("data-node-id");
+                                if (id) {
+                                    await this.multiLevelSort(id);
+                                }
+                            }
+                        }
                     }
                 ]
             });
         }
     }
+
     private async handleDocumentMenu({ detail }) {
         detail.menu.addItem({
             icon: "iconSort",
@@ -326,6 +322,13 @@ export default class DocMoverPlugin extends Plugin {
                     label: this.i18n.onlySort,
                     click: async () => {
                         await this.moveAndSortReferencedDocs(detail.protyle.block.rootID, undefined, false, true);
+                    }
+                },
+                {
+                    icon: "iconSort",
+                    label: this.i18n.multiLevelSort,
+                    click: async () => {
+                        await this.multiLevelSort(detail.protyle.block.rootID);
                     }
                 }
             ]
@@ -492,6 +495,66 @@ export default class DocMoverPlugin extends Plugin {
         }
         showMessage(message.length > 0 ? message.join(', ') : this.i18n.noDocsProcessed);
 
+    }
+
+    private async multiLevelSort(parentDocID: string) {
+        showMessage(this.i18n.processing);
+        await refreshSql();
+    
+        // Get all child documents and their paths
+        const childDocsQuery = `
+            SELECT b.id, b.path, r.root_id as parent_id
+            FROM refs r
+            LEFT JOIN blocks b ON b.id = r.def_block_id
+            WHERE b.type = 'd' 
+            AND b.path LIKE '%/${parentDocID}/%'
+            AND r.root_id = '${parentDocID}'
+        `;
+        
+        const childDocs = await sql(childDocsQuery);
+        
+        // Group documents by their parent path
+        const groupedDocs = new Map<string, Array<{id: string, path: string}>>();
+        
+        childDocs.forEach(doc => {
+            const pathParts = doc.path.split('/');
+            const parentPath = pathParts.slice(0, -1).join('/');
+            
+            if (!groupedDocs.has(parentPath)) {
+                groupedDocs.set(parentPath, []);
+            }
+            groupedDocs.get(parentPath).push({
+                id: doc.id,
+                path: doc.path
+            });
+        });
+        console.log(groupedDocs)
+        // Sort each group and update sort.json
+        const currentDoc = await getBlockByID(parentDocID);
+        const boxID = currentDoc.box;
+        const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
+        
+        let sortIndex = 1;
+        for (const [parentPath, docs] of groupedDocs) {
+            // Update sort values
+            docs.forEach(doc => {
+                sortJson[doc.id] = sortIndex++;
+            });
+        }
+    
+        await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
+    
+        // Refresh file tree
+        let element = document.querySelector(`.file-tree li[data-node-id="${parentDocID}"] > .b3-list-item__toggle--hl`);
+        if (element) {
+            element.click();
+            element.click();
+        }
+    
+        showMessage(this.i18n.sortedDocs
+            .replace("{count}", childDocs.length.toString())
+            .replace("{affected}", childDocs.length.toString())
+            .replace("{unaffected}", "0"));
     }
 
     onLayoutReady() {

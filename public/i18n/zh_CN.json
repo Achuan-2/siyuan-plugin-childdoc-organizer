@@ -1,7 +1,8 @@
 {
     "childDocOrganizer": "子文档整理",
     "moveAndSort": "移动引用文档为子文档并排序",
-    "onlySort": "仅排序引用的子文档",
+    "onlySort": "排序引用的子文档（一级）",
+    "multiLevelSort": "排序引用的子文档（所有层级）",
     "createFromParagraphs": "从段落创建子文档",
     "noReferencesFound": "未找到引用",
     "noValidParagraphs": "未找到有效段落",

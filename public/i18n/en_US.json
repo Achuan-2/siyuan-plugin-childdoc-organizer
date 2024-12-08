@@ -1,7 +1,8 @@
 {
     "childDocOrganizer": "ChildDoc Organizer",
     "moveAndSort": "Move referenced docs as childdocs and sort",
-    "onlySort": "Only sort referenced childdocs",
+    "onlySort": "Only sort referenced childdocs (1 levels)",
+    "multiLevelSort": "Only sort referenced childdocs (all levels)",
     "createFromParagraphs": "Create Child Docs from Paragraphs",
     "noReferencesFound": "No references found",
     "noValidParagraphs": "No valid paragraphs found",
