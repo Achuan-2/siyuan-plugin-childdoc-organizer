@@ -12,12 +12,14 @@ import "@/index.scss";
 import { SettingUtils } from "./libs/setting-utils";
 import { svelteDialog } from "./libs/dialog";
 import { sql, moveDocsByID, getBlockByID, getBlockDOM, getFile, putFile, refreshSql, createDocWithMd, updateBlock} from "./api";
+import LoadingDialog from "./components/LoadingDialog.svelte";
 
 const STORAGE_NAME = "config";
 
 export default class DocMoverPlugin extends Plugin {
     private isMobile: boolean;
     private settingUtils: SettingUtils;
+    private loadingDialog: Dialog;
 
     async onload() {
         // 文档块标添加菜单
@@ -353,8 +355,33 @@ export default class DocMoverPlugin extends Plugin {
             .sort((a, b) => a.sortValue - b.sortValue);
     }
 
+    private showLoadingDialog(message: string) {
+        if (this.loadingDialog) {
+            this.loadingDialog.destroy();
+        }
+        this.loadingDialog = new Dialog({
+            title: "Processing",
+            content: `<div id="loadingDialogContent"></div>`,
+            width: "300px",
+            height: "150px",
+            disableClose: true, // 禁止点击外部关闭
+            destroyCallback: null // 禁止自动关闭
+        });
+        new LoadingDialog({
+            target: this.loadingDialog.element.querySelector('#loadingDialogContent'),
+            props: { message }
+        });
+    }
+
+    private closeLoadingDialog() {
+        if (this.loadingDialog) {
+            this.loadingDialog.destroy();
+            this.loadingDialog = null;
+        }
+    }
+
     private async moveAndSortReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false, onlySort: boolean = false) {
-        showMessage(this.i18n.processing);
+        this.showLoadingDialog(this.i18n.processing);
         await refreshSql();
         console.log(onlySort)
         console.log(onlySort)
@@ -482,7 +509,7 @@ export default class DocMoverPlugin extends Plugin {
             element.click();
         }
 
-        // Show detailed message
+        // Show detailed message and close dialog
         let message = [];
         if (!onlySort && movedCount > 0) {
             message.push(this.i18n.movedDocs.replace("{count}", movedCount.toString()));
@@ -493,12 +520,13 @@ export default class DocMoverPlugin extends Plugin {
                 .replace("{affected}", sortedCount.toString())
                 .replace("{unaffected}", unaffectedCount.toString()));
         }
+        this.closeLoadingDialog();
         showMessage(message.length > 0 ? message.join(', ') : this.i18n.noDocsProcessed);
 
     }
 
     private async multiLevelSort(parentDocID: string) {
-        showMessage(this.i18n.processing);
+        this.showLoadingDialog(this.i18n.processing);
         await refreshSql();
     
         // Get all child documents and their paths
@@ -551,6 +579,7 @@ export default class DocMoverPlugin extends Plugin {
             element.click();
         }
     
+        this.closeLoadingDialog();
         showMessage(this.i18n.sortedDocs
             .replace("{count}", childDocs.length.toString())
             .replace("{affected}", childDocs.length.toString())
