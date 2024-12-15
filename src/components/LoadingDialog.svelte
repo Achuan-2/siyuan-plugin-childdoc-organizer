@@ -1,5 +1,6 @@
 
 <script lang="ts">
+    // Define the message prop
     export let message: string;
 </script>
 

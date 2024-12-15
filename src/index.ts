@@ -590,10 +590,18 @@ export default class DocMoverPlugin extends Plugin {
     }
 
     async onunload() {
-        // ...existing code...
+        this.eventBus.off('click-editortitleicon', this.handleDocumentMenu.bind(this));
+        // 文档树添加菜单
+        this.eventBus.off("open-menu-doctree", this.handleFiletreeMenu.bind(this));
+        // 块菜单添加菜单
+        this.eventBus.off('click-blockicon', this.handleBlockMenu.bind(this));
     }
 
     uninstall() {
-        // ...existing code...
+        this.eventBus.off('click-editortitleicon', this.handleDocumentMenu.bind(this));
+        // 文档树添加菜单
+        this.eventBus.off("open-menu-doctree", this.handleFiletreeMenu.bind(this));
+        // 块菜单添加菜单
+        this.eventBus.off('click-blockicon', this.handleBlockMenu.bind(this));
     }
 }
