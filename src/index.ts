@@ -11,7 +11,7 @@ import {
 import "@/index.scss";
 import { SettingUtils } from "./libs/setting-utils";
 import { svelteDialog } from "./libs/dialog";
-import { sql, moveDocsByID, getBlockByID, getBlockDOM, getFile, putFile, refreshSql, createDocWithMd, updateBlock} from "./api";
+import { sql, moveDocsByID, getBlockByID, getBlockDOM, getFile, putFile, refreshSql, createDocWithMd, updateBlock,addRiffCards } from "./api";
 import LoadingDialog from "./components/LoadingDialog.svelte";
 
 const STORAGE_NAME = "config";
@@ -96,6 +96,20 @@ export default class DocMoverPlugin extends Plugin {
                         }
                     }
                 ]
+            });
+            
+            // 添加独立的批量制卡菜单
+            detail.menu.addItem({
+                icon: "iconRiffCard",
+                label: "批量制卡",
+                click: async () => {
+                    const blockIds = await this.getBoundBlockIds(block);
+                    if (blockIds.length === 0) {
+                        showMessage("数据库中没有找到绑定的块");
+                        return;
+                    }
+                    await this.batchCreateCards(blockIds);
+                }
             });
             return;
         }
@@ -603,5 +617,36 @@ export default class DocMoverPlugin extends Plugin {
         this.eventBus.off("open-menu-doctree", this.handleFiletreeMenu.bind(this));
         // 块菜单添加菜单
         this.eventBus.off('click-blockicon', this.handleBlockMenu.bind(this));
+    }
+
+    private async batchCreateCards(blockIds: string[]) {
+        this.showLoadingDialog("正在批量制卡...");
+        
+        try {
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (const blockId of blockIds) {
+                try {
+                    await addRiffCards([blockId]);
+                    successCount++;
+                } catch (error) {
+                    console.error(`制卡失败，块ID: ${blockId}`, error);
+                    errorCount++;
+                }
+            }
+            
+            this.closeLoadingDialog();
+            
+            if (errorCount === 0) {
+                showMessage(`批量制卡完成，成功制作 ${successCount} 张卡片`);
+            } else {
+                showMessage(`批量制卡完成，成功 ${successCount} 张，失败 ${errorCount} 张`);
+            }
+        } catch (error) {
+            this.closeLoadingDialog();
+            console.error("批量制卡过程中发生错误:", error);
+            showMessage("批量制卡失败，请查看控制台错误信息");
+        }
     }
 }
