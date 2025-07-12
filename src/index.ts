@@ -11,7 +11,7 @@ import {
 import "@/index.scss";
 import { SettingUtils } from "./libs/setting-utils";
 import { svelteDialog } from "./libs/dialog";
-import { sql, moveDocsByID, getBlockByID, getBlockDOM, getFile, putFile, refreshSql, createDocWithMd, updateBlock,addRiffCards } from "./api";
+import { sql, moveDocsByID, getBlockByID, getBlockDOM, getFile, putFile, refreshSql, createDocWithMd, updateBlock, addRiffCards } from "./api";
 import LoadingDialog from "./components/LoadingDialog.svelte";
 
 const STORAGE_NAME = "config";
@@ -48,7 +48,7 @@ export default class DocMoverPlugin extends Plugin {
             pageSize: 9999999,
             page: 1
         });
-        
+
         return response.data.view.rows.map(item => item.id);
     }
 
@@ -64,7 +64,7 @@ export default class DocMoverPlugin extends Plugin {
         }
 
         const block = detail.blockElements[0];
-        
+
         // Handle attribute view specifically
         if (this.isAttributeView(block)) {
             detail.menu.addItem({
@@ -97,7 +97,7 @@ export default class DocMoverPlugin extends Plugin {
                     }
                 ]
             });
-            
+
             // 添加独立的批量制卡菜单
             detail.menu.addItem({
                 icon: "iconRiffCard",
@@ -133,12 +133,12 @@ export default class DocMoverPlugin extends Plugin {
 
         let currentDocID = parentDocID;
         let currentPath = parentPath;
-        
+
         // If no block reference exists, create new doc and reference
         if (!this.hasBlockRef(paragraph)) {
             const content = paragraph.querySelector('div:first-child')?.textContent?.trim() || '';
             const paragraphId = paragraph.getAttribute('data-node-id');
-            
+
             if (content && paragraphId) {
                 currentDocID = await createDocWithMd(boxID, `${parentPath}/${content}`, "");
                 const refMd = `<span data-type="block-ref" data-id="${currentDocID}" data-subtype="d">${content}</span>`;
@@ -181,7 +181,7 @@ export default class DocMoverPlugin extends Plugin {
 
             const content = block.querySelector('div:first-child')?.textContent?.trim() || '';
             const id = block.getAttribute('data-node-id');
-            
+
             if (content && id) {
                 const docID = await createDocWithMd(boxID, `${parentPath}/${content}`, "");
                 const refMd = `<span data-type="block-ref" data-id="${docID}" data-subtype="d">${content}</span>`;
@@ -214,7 +214,7 @@ export default class DocMoverPlugin extends Plugin {
 
             const content = paragraph.querySelector('div:first-child')?.textContent?.trim() || '';
             const id = paragraph.getAttribute('data-node-id');
-            
+
             if (content && id) {
                 try {
                     const docID = await createDocWithMd(boxID, `${parentPath}/${content}`, "");
@@ -256,13 +256,13 @@ export default class DocMoverPlugin extends Plugin {
                         for (const blockElement of blockElements) {
                             const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
                                 .map(el => el.getAttribute('data-id'));
-                                blockIds.push(...refs);
-                            }
-                            if (blockIds.length === 0) {
-                                showMessage(this.i18n.noReferencesFound);
-                                return;
-                            }
-                            await this.moveAndSortReferencedDocs(protyle.block.rootID, blockIds);
+                            blockIds.push(...refs);
+                        }
+                        if (blockIds.length === 0) {
+                            showMessage(this.i18n.noReferencesFound);
+                            return;
+                        }
+                        await this.moveAndSortReferencedDocs(protyle.block.rootID, blockIds);
                     }
                 }
             ]
@@ -274,7 +274,7 @@ export default class DocMoverPlugin extends Plugin {
         if (elements.length === 0) return;
 
         // Check if any element is notebook root
-        const hasNotebook = elements.some((element: HTMLElement) => 
+        const hasNotebook = elements.some((element: HTMLElement) =>
             element.getAttribute("data-type") === "navigation-root"
         );
 
@@ -354,7 +354,7 @@ export default class DocMoverPlugin extends Plugin {
         });
     }
 
-    private async getUnaffectedChildDocs(parentDocID: string, affectedDocIds: string[], sortJson: any): Promise<{id: string, sortValue: number}[]> {
+    private async getUnaffectedChildDocs(parentDocID: string, affectedDocIds: string[], sortJson: any): Promise<{ id: string, sortValue: number }[]> {
         const childDocsQuery = `
             SELECT DISTINCT id 
             FROM blocks 
@@ -403,7 +403,7 @@ export default class DocMoverPlugin extends Plugin {
         let movedCount = 0;
         const docsToMove: string[] = [];
         if (!onlySort) {
-            const moveQuery = blockIds && blockIds.length > 0 
+            const moveQuery = blockIds && blockIds.length > 0
                 ? `
                     SELECT DISTINCT root_id as def_block_id
                     FROM blocks 
@@ -431,7 +431,7 @@ export default class DocMoverPlugin extends Plugin {
 
         let sortedCount = 0;
         let unaffectedCount = 0;
-        
+
         // Handle sorting
         if (isAttributeView && blockIds && blockIds.length > 0) {
             // Get root IDs for the bound blocks in order
@@ -449,7 +449,7 @@ export default class DocMoverPlugin extends Plugin {
                 )
             `;
             const blockRoots = await sql(rootIdsQuery);
-            
+
             // For document blocks, we can use the id directly since id = root_id
             const sortedRootIds = blockIds
                 .filter(id => blockRoots.some(row => row.id === id))
@@ -459,15 +459,15 @@ export default class DocMoverPlugin extends Plugin {
                 const currentDoc = await getBlockByID(currentDocID);
                 const boxID = currentDoc.box;
                 const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
-                
+
                 const unaffectedDocs = await this.getUnaffectedChildDocs(currentDocID, sortedRootIds, sortJson);
                 sortedCount = sortedRootIds.length;
-                
+
                 // Get and sort unaffected docs
                 unaffectedDocs.forEach((doc, index) => {
                     sortJson[doc.id] = index + 1;
                 });
-                
+
                 // Apply sorting for affected docs after unaffected ones
                 unaffectedCount = unaffectedDocs.length;
                 sortedRootIds.forEach((id, index) => {
@@ -497,15 +497,15 @@ export default class DocMoverPlugin extends Plugin {
                 const currentDoc = await getBlockByID(currentDocID);
                 const boxID = currentDoc.box;
                 const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
-                
+
                 const unaffectedDocs = await this.getUnaffectedChildDocs(currentDocID, docsToSort, sortJson);
                 sortedCount = docsToSort.length;
-                
+
                 // Get and sort unaffected docs
                 unaffectedDocs.forEach((doc, index) => {
                     sortJson[doc.id] = index + 1;
                 });
-                
+
                 // Update sort values for affected docs
                 unaffectedCount = unaffectedDocs.length;
                 docsToSort.forEach((id, index) => {
@@ -542,7 +542,7 @@ export default class DocMoverPlugin extends Plugin {
     private async multiLevelSort(parentDocID: string) {
         this.showLoadingDialog(this.i18n.processing);
         await refreshSql();
-    
+
         // Get all child documents and their paths
         const childDocsQuery = `
             SELECT b.id, b.path, r.root_id as parent_id
@@ -552,16 +552,16 @@ export default class DocMoverPlugin extends Plugin {
             AND b.path LIKE '%/${parentDocID}/%'
             AND r.root_id = '${parentDocID}'
         `;
-        
+
         const childDocs = await sql(childDocsQuery);
-        
+
         // Group documents by their parent path
-        const groupedDocs = new Map<string, Array<{id: string, path: string}>>();
-        
+        const groupedDocs = new Map<string, Array<{ id: string, path: string }>>();
+
         childDocs.forEach(doc => {
             const pathParts = doc.path.split('/');
             const parentPath = pathParts.slice(0, -1).join('/');
-            
+
             if (!groupedDocs.has(parentPath)) {
                 groupedDocs.set(parentPath, []);
             }
@@ -574,7 +574,7 @@ export default class DocMoverPlugin extends Plugin {
         const currentDoc = await getBlockByID(parentDocID);
         const boxID = currentDoc.box;
         const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
-        
+
         let sortIndex = 1;
         for (const [parentPath, docs] of groupedDocs) {
             // Update sort values
@@ -582,16 +582,16 @@ export default class DocMoverPlugin extends Plugin {
                 sortJson[doc.id] = sortIndex++;
             });
         }
-    
+
         await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
-    
+
         // Refresh file tree
         let element = document.querySelector(`.file-tree li[data-node-id="${parentDocID}"] > .b3-list-item__toggle--hl`);
         if (element) {
             element.click();
             element.click();
         }
-    
+
         this.closeLoadingDialog();
         showMessage(this.i18n.sortedDocs
             .replace("{count}", childDocs.length.toString())
@@ -621,11 +621,11 @@ export default class DocMoverPlugin extends Plugin {
 
     private async batchCreateCards(blockIds: string[]) {
         this.showLoadingDialog("正在批量制卡...");
-        
+
         try {
             let successCount = 0;
             let errorCount = 0;
-            
+
             for (const blockId of blockIds) {
                 try {
                     await addRiffCards([blockId]);
@@ -635,9 +635,9 @@ export default class DocMoverPlugin extends Plugin {
                     errorCount++;
                 }
             }
-            
+
             this.closeLoadingDialog();
-            
+
             if (errorCount === 0) {
                 showMessage(`批量制卡完成，成功制作 ${successCount} 张卡片`);
             } else {
