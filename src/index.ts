@@ -49,7 +49,24 @@ export default class DocMoverPlugin extends Plugin {
             page: 1
         });
 
-        return response.data.view.rows.map(item => item.id);
+        const boundBlockIds: string[] = [];
+        
+        // 遍历所有行
+        for (const row of response.data.view.rows) {
+            // 遍历每行的所有单元格
+            for (const cell of row.cells) {
+                // 检查单元格是否为块类型且未分离
+                if (cell.valueType === 'block' && 
+                    cell.value && 
+                    cell.value.block && 
+                    cell.value.block.id && 
+                    cell.value.isDetached === false) {
+                    boundBlockIds.push(cell.value.block.id);
+                }
+            }
+        }
+
+        return boundBlockIds;
     }
 
     private async getBoundBlockIds(attributeView: HTMLElement): Promise<string[]> {
