@@ -60,7 +60,7 @@ export default class DocMoverPlugin extends Plugin {
                     cell.value && 
                     cell.value.block && 
                     cell.value.block.id && 
-                    cell.value.isDetached === false) {
+                    cell.value.isDetached !== true) {
                     boundBlockIds.push(cell.value.block.id);
                 }
             }
