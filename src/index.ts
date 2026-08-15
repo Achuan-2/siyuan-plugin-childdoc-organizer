@@ -28,6 +28,7 @@ export default class DocMoverPlugin extends Plugin {
     private isMobile: boolean;
     private settingUtils: SettingUtils;
     private loadingDialog: Dialog;
+    private loadingDialogComponent: LoadingDialog;
 
     async onload() {
         // 文档块标添加菜单
@@ -277,6 +278,7 @@ export default class DocMoverPlugin extends Plugin {
             WHERE root_id = '${documentID}'
             AND parent_id = '${documentID}'
             AND type = 'h'
+            LIMIT 999999
         `);
         const blockDOM = await getBlockDOM(documentID);
         const headingIDs = this.getHeadingIDsInDOMOrder(
@@ -288,9 +290,11 @@ export default class DocMoverPlugin extends Plugin {
             return;
         }
 
-        this.showLoadingDialog(this.i18n.convertingHeadings.replace("{count}", headingIDs.length.toString()));
+        const progressMessage = this.i18n.convertingHeadings.replace("{count}", headingIDs.length.toString());
+        this.showLoadingDialog(progressMessage, 0, headingIDs.length);
         let convertedCount = 0;
         let failedCount = 0;
+        let processedCount = 0;
 
         try {
             // 标题转文档会连同其下属内容一起移动，所以先固定顶级标题列表，再按原顺序逐个转换。
@@ -311,6 +315,9 @@ export default class DocMoverPlugin extends Plugin {
                 } catch (error) {
                     failedCount++;
                     console.error(`标题转子文档失败，标题块 ID: ${headingID}`, error);
+                } finally {
+                    processedCount++;
+                    this.updateLoadingDialog(progressMessage, processedCount, headingIDs.length);
                 }
             }
         } finally {
@@ -646,7 +653,7 @@ export default class DocMoverPlugin extends Plugin {
             .sort((a, b) => a.sortValue - b.sortValue);
     }
 
-    private showLoadingDialog(message: string) {
+    private showLoadingDialog(message: string, current: number | null = null, total: number | null = null) {
         if (this.loadingDialog) {
             this.loadingDialog.destroy();
         }
@@ -658,16 +665,21 @@ export default class DocMoverPlugin extends Plugin {
             disableClose: true, // 禁止点击外部关闭
             destroyCallback: null // 禁止自动关闭
         });
-        new LoadingDialog({
+        this.loadingDialogComponent = new LoadingDialog({
             target: this.loadingDialog.element.querySelector('#loadingDialogContent'),
-            props: { message }
+            props: { message, current, total }
         });
+    }
+
+    private updateLoadingDialog(message: string, current: number, total: number) {
+        this.loadingDialogComponent?.$set({ message, current, total });
     }
 
     private closeLoadingDialog() {
         if (this.loadingDialog) {
             this.loadingDialog.destroy();
             this.loadingDialog = null;
+            this.loadingDialogComponent = null;
         }
     }
 
