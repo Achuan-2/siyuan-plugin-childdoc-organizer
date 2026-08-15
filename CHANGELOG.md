@@ -1,4 +1,4 @@
-## v0.0.8 / 20260815
+## v0.0.9 / 20260815
 - 🎨 标题转子文档 [#1](https://github.com/Achuan-2/siyuan-plugin-childdoc-organizer/issues/1)
 - 🎨 支持复制子文档为块引用/块链接
 

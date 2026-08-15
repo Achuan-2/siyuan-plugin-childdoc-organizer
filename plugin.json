@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-childdoc-organizer",
   "author": "Achuan-2",
   "url": "https://github.com/Achuan-2/siyuan-plugin-childdoc-organizer",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "minAppVersion": "3.1.15",
   "backends": [
     "windows",
@@ -20,15 +20,15 @@
     "desktop-window"
   ],
   "displayName": {
-    "en_US": "ChildDoc Organizer",
+    "default": "ChildDoc Organizer",
     "zh_CN": "子文档整理"
   },
   "description": {
-    "en_US": "Simplify the steps of creating, archiving, and sorting child documents in SiYuan",
+    "default": "Simplify the steps of creating, archiving, and sorting child documents in SiYuan",
     "zh_CN": "简化思源笔记子文档创建、子文档归档、子文档排序等步骤"
   },
   "readme": {
-    "en_US": "README.md",
+    "default": "README.md",
     "zh_CN": "README_zh_CN.md"
   },
   "funding": {
