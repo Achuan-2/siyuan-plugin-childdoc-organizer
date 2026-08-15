@@ -18,5 +18,12 @@
     "documentNotFound": "Document not found",
     "convertingHeadings": "Converting {count} top-level headings to child documents...",
     "convertedHeadings": "Converted {count} top-level headings to child documents",
-    "convertedHeadingsWithFailures": "Heading conversion complete: {count} succeeded, {failed} failed"
+    "convertedHeadingsWithFailures": "Heading conversion complete: {count} succeeded, {failed} failed",
+    "copyChildDocs": "Copy Child Documents As",
+    "blockLinks": "Block Links",
+    "blockRefs": "Block References",
+    "collectingChildDocs": "Reading child documents...",
+    "noChildDocs": "No child documents found",
+    "copiedChildDocs": "Copied {count} child documents to the clipboard",
+    "copyChildDocsFailed": "Failed to copy child documents"
 }

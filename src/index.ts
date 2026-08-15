@@ -16,6 +16,14 @@ import LoadingDialog from "./components/LoadingDialog.svelte";
 
 const STORAGE_NAME = "config";
 
+type DocTreeNode = {
+    name: string;
+    id: string;
+    children: DocTreeNode[];
+};
+
+type ChildDocCopyFormat = "link" | "ref";
+
 export default class DocMoverPlugin extends Plugin {
     private isMobile: boolean;
     private settingUtils: SettingUtils;
@@ -318,6 +326,118 @@ export default class DocMoverPlugin extends Plugin {
         }
     }
 
+    private async getDocTree(notebookID: string, path: string, sortMode: number): Promise<DocTreeNode[]> {
+        const response = await fetchSyncPost("/api/filetree/listDocsByPath", {
+            notebook: notebookID,
+            path,
+            sort: sortMode,
+            showHidden: false,
+            maxListCount: 10000,
+        });
+        if (response.code !== 0 || !response.data?.files) {
+            throw new Error(response.msg || `获取路径 [${path}] 下的子文档失败`);
+        }
+
+        return Promise.all(response.data.files.map(async (file): Promise<DocTreeNode> => ({
+            name: file.name.replace(/\.sy$/, ""),
+            id: file.id,
+            children: file.subFileCount > 0
+                ? await this.getDocTree(notebookID, file.path.replace(/\.sy$/, ""), sortMode)
+                : [],
+        })));
+    }
+
+    private async getNotebookSortMode(notebookID: string): Promise<number> {
+        const response = await fetchSyncPost("/api/notebook/getNotebookConf", {
+            notebook: notebookID,
+        });
+        if (response.code !== 0 || !response.data?.conf) {
+            throw new Error(response.msg || "获取笔记本排序配置失败");
+        }
+
+        const notebookSortMode = response.data.conf.sortMode;
+        return notebookSortMode === 15
+            ? window.siyuan.config.fileTree.sort
+            : notebookSortMode;
+    }
+
+    private escapeMarkdownLinkText(text: string): string {
+        return text.replace(/\\/g, "\\\\").replace(/([\[\]])/g, "\\$1");
+    }
+
+    private escapeBlockRefText(text: string): string {
+        return text.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    }
+
+    private formatDocTree(nodes: DocTreeNode[], format: ChildDocCopyFormat, depth = 0): string[] {
+        const lines: string[] = [];
+        for (const node of nodes) {
+            const name = node.name || node.id;
+            const reference = format === "link"
+                ? `[${this.escapeMarkdownLinkText(name)}](siyuan://blocks/${node.id})`
+                : `((${node.id} "${this.escapeBlockRefText(name)}"))`;
+            lines.push(`${"    ".repeat(depth)}- ${reference}`);
+            lines.push(...this.formatDocTree(node.children, format, depth + 1));
+        }
+        return lines;
+    }
+
+    private countDocTreeNodes(nodes: DocTreeNode[]): number {
+        return nodes.reduce((count, node) => count + 1 + this.countDocTreeNodes(node.children), 0);
+    }
+
+    private async writeClipboardText(text: string) {
+        if (navigator.clipboard?.writeText) {
+            try {
+                await navigator.clipboard.writeText(text);
+                return;
+            } catch (error) {
+                console.warn("Clipboard API 写入失败，尝试兼容方式", error);
+            }
+        }
+
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        if (!copied) {
+            throw new Error("写入剪贴板失败");
+        }
+    }
+
+    private async copyChildDocs(documentIDs: string[], format: ChildDocCopyFormat) {
+        this.showLoadingDialog(this.i18n.collectingChildDocs);
+
+        try {
+            const combinedTree: DocTreeNode[] = [];
+            for (const documentID of documentIDs) {
+                const document = await getBlockByID(documentID);
+                if (!document) continue;
+
+                const sortMode = await this.getNotebookSortMode(document.box);
+                combinedTree.push(...await this.getDocTree(document.box, document.path, sortMode));
+            }
+
+            const count = this.countDocTreeNodes(combinedTree);
+            if (count === 0) {
+                showMessage(this.i18n.noChildDocs);
+                return;
+            }
+
+            await this.writeClipboardText(this.formatDocTree(combinedTree, format).join("\n"));
+            showMessage(this.i18n.copiedChildDocs.replace("{count}", count.toString()));
+        } catch (error) {
+            console.error("复制子文档失败", error);
+            showMessage(this.i18n.copyChildDocsFailed);
+        } finally {
+            this.closeLoadingDialog();
+        }
+    }
+
     private addDefaultBlockMenuItem(menu: Menu, blockElements: HTMLElement[], protyle: Protyle) {
         menu.addItem({
             icon: "iconSort",
@@ -419,6 +539,32 @@ export default class DocMoverPlugin extends Plugin {
                                 }
                             }
                         }
+                    },
+                    {
+                        icon: "iconCopy",
+                        label: this.i18n.copyChildDocs,
+                        submenu: [
+                            {
+                                icon: "iconLink",
+                                label: this.i18n.blockLinks,
+                                click: async () => {
+                                    const documentIDs = elements
+                                        .map(element => element.getAttribute("data-node-id"))
+                                        .filter((id): id is string => Boolean(id));
+                                    await this.copyChildDocs(documentIDs, "link");
+                                }
+                            },
+                            {
+                                icon: "iconRef",
+                                label: this.i18n.blockRefs,
+                                click: async () => {
+                                    const documentIDs = elements
+                                        .map(element => element.getAttribute("data-node-id"))
+                                        .filter((id): id is string => Boolean(id));
+                                    await this.copyChildDocs(documentIDs, "ref");
+                                }
+                            }
+                        ]
                     }
                 ]
             });
@@ -457,6 +603,26 @@ export default class DocMoverPlugin extends Plugin {
                     click: async () => {
                         await this.convertTopLevelHeadingsToChildDocs(detail.protyle.block.rootID);
                     }
+                },
+                {
+                    icon: "iconCopy",
+                    label: this.i18n.copyChildDocs,
+                    submenu: [
+                        {
+                            icon: "iconLink",
+                            label: this.i18n.blockLinks,
+                            click: async () => {
+                                await this.copyChildDocs([detail.protyle.block.rootID], "link");
+                            }
+                        },
+                        {
+                            icon: "iconRef",
+                            label: this.i18n.blockRefs,
+                            click: async () => {
+                                await this.copyChildDocs([detail.protyle.block.rootID], "ref");
+                            }
+                        }
+                    ]
                 }
             ]
         });

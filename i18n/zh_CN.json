@@ -18,5 +18,12 @@
     "documentNotFound": "未找到文档",
     "convertingHeadings": "正在将 {count} 个顶级标题转换为子文档...",
     "convertedHeadings": "已将 {count} 个顶级标题转换为子文档",
-    "convertedHeadingsWithFailures": "标题转子文档完成：成功 {count} 个，失败 {failed} 个"
+    "convertedHeadingsWithFailures": "标题转子文档完成：成功 {count} 个，失败 {failed} 个",
+    "copyChildDocs": "复制子文档为",
+    "blockLinks": "块链接",
+    "blockRefs": "块引用",
+    "collectingChildDocs": "正在读取子文档...",
+    "noChildDocs": "未找到子文档",
+    "copiedChildDocs": "已复制 {count} 个子文档到剪贴板",
+    "copyChildDocsFailed": "复制子文档失败"
 }
