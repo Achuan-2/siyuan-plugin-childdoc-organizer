@@ -12,5 +12,11 @@
     "movedDocs": "已移动 {count} 个文档",
     "sortedDocs": "已排序 {count} 个文档 ({affected} 个受影响, {unaffected} 个未受影响)",
     "noDocsProcessed": "没有文档被移动或排序",
-    "noReferencedBlocksFound": "未找到引用的块"
+    "noReferencedBlocksFound": "未找到引用的块",
+    "headingToChildDocs": "标题转子文档",
+    "noTopLevelHeadings": "未找到顶级标题块",
+    "documentNotFound": "未找到文档",
+    "convertingHeadings": "正在将 {count} 个顶级标题转换为子文档...",
+    "convertedHeadings": "已将 {count} 个顶级标题转换为子文档",
+    "convertedHeadingsWithFailures": "标题转子文档完成：成功 {count} 个，失败 {failed} 个"
 }

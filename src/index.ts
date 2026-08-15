@@ -246,6 +246,78 @@ export default class DocMoverPlugin extends Plugin {
         showMessage(this.i18n.createdDocs.replace("{count}", paragraphElements.length.toString()));
     }
 
+    private getHeadingIDsInDOMOrder(blockDOM: string, headingIDs: Set<string>): string[] {
+        const template = document.createElement("template");
+        template.innerHTML = blockDOM;
+        return Array.from(template.content.querySelectorAll<HTMLElement>('[data-type="NodeHeading"]'))
+            .map(heading => heading.getAttribute("data-node-id"))
+            .filter((id): id is string => Boolean(id && headingIDs.has(id)));
+    }
+
+    private async convertTopLevelHeadingsToChildDocs(documentID: string) {
+        await refreshSql();
+        const document = await getBlockByID(documentID);
+        if (!document) {
+            showMessage(this.i18n.documentNotFound);
+            return;
+        }
+
+        // blocks.parent_id 已按标题层级索引：仅 parent_id 为文档 ID 的标题才是顶级标题。
+        const headings = await sql(`
+            SELECT id
+            FROM blocks
+            WHERE root_id = '${documentID}'
+            AND parent_id = '${documentID}'
+            AND type = 'h'
+        `);
+        const blockDOM = await getBlockDOM(documentID);
+        const headingIDs = this.getHeadingIDsInDOMOrder(
+            blockDOM?.dom || "",
+            new Set(headings.map(heading => heading.id))
+        );
+        if (headingIDs.length === 0) {
+            showMessage(this.i18n.noTopLevelHeadings);
+            return;
+        }
+
+        this.showLoadingDialog(this.i18n.convertingHeadings.replace("{count}", headingIDs.length.toString()));
+        let convertedCount = 0;
+        let failedCount = 0;
+
+        try {
+            // 标题转文档会连同其下属内容一起移动，所以先固定顶级标题列表，再按原顺序逐个转换。
+            for (const headingID of headingIDs) {
+                try {
+                    const response = await fetchSyncPost("/api/filetree/heading2Doc", {
+                        srcHeadingID: headingID,
+                        targetNoteBook: document.box,
+                        targetPath: document.path,
+                        pushMode: 0,
+                    });
+                    if (response.code === 0) {
+                        convertedCount++;
+                        continue;
+                    }
+                    failedCount++;
+                    console.error(`标题转子文档失败，标题块 ID: ${headingID}`, response.msg);
+                } catch (error) {
+                    failedCount++;
+                    console.error(`标题转子文档失败，标题块 ID: ${headingID}`, error);
+                }
+            }
+        } finally {
+            this.closeLoadingDialog();
+        }
+
+        if (failedCount === 0) {
+            showMessage(this.i18n.convertedHeadings.replace("{count}", convertedCount.toString()));
+        } else {
+            showMessage(this.i18n.convertedHeadingsWithFailures
+                .replace("{count}", convertedCount.toString())
+                .replace("{failed}", failedCount.toString()));
+        }
+    }
+
     private addDefaultBlockMenuItem(menu: Menu, blockElements: HTMLElement[], protyle: Protyle) {
         menu.addItem({
             icon: "iconSort",
@@ -287,7 +359,7 @@ export default class DocMoverPlugin extends Plugin {
     }
 
     private async handleFiletreeMenu({ detail }) {
-        const elements = Array.from(detail.elements); // 将 NodeList 或其他集合转换为数组
+        const elements = Array.from(detail.elements) as HTMLElement[]; // 将 NodeList 或其他集合转换为数组
         if (elements.length === 0) return;
 
         // Check if any element is notebook root
@@ -335,6 +407,18 @@ export default class DocMoverPlugin extends Plugin {
                                 }
                             }
                         }
+                    },
+                    {
+                        icon: "iconHeadings",
+                        label: this.i18n.headingToChildDocs,
+                        click: async () => {
+                            for (const element of elements) {
+                                const id = element.getAttribute("data-node-id");
+                                if (id) {
+                                    await this.convertTopLevelHeadingsToChildDocs(id);
+                                }
+                            }
+                        }
                     }
                 ]
             });
@@ -365,6 +449,13 @@ export default class DocMoverPlugin extends Plugin {
                     label: this.i18n.multiLevelSort,
                     click: async () => {
                         await this.multiLevelSort(detail.protyle.block.rootID);
+                    }
+                },
+                {
+                    icon: "iconHeadings",
+                    label: this.i18n.headingToChildDocs,
+                    click: async () => {
+                        await this.convertTopLevelHeadingsToChildDocs(detail.protyle.block.rootID);
                     }
                 }
             ]

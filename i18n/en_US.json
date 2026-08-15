@@ -12,5 +12,11 @@
     "movedDocs": "Moved {count} documents",
     "sortedDocs": "Sorted {count} documents ({affected} affected, {unaffected} unaffected)",
     "noDocsProcessed": "No documents were moved or sorted",
-    "noReferencedBlocksFound": "No referenced blocks found"
+    "noReferencedBlocksFound": "No referenced blocks found",
+    "headingToChildDocs": "Convert Headings to Child Docs",
+    "noTopLevelHeadings": "No top-level heading blocks found",
+    "documentNotFound": "Document not found",
+    "convertingHeadings": "Converting {count} top-level headings to child documents...",
+    "convertedHeadings": "Converted {count} top-level headings to child documents",
+    "convertedHeadingsWithFailures": "Heading conversion complete: {count} succeeded, {failed} failed"
 }
