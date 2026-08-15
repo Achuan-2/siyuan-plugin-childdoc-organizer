@@ -1,3 +1,7 @@
+## v0.0.8 / 20260815
+- 🎨 标题转子文档 [#1](https://github.com/Achuan-2/siyuan-plugin-childdoc-organizer/issues/1)
+- 🎨 支持复制子文档为块引用/块链接
+
 ## v0.0.7 /20251217
 - 🐛 数据库页面无法移动 [#3](https://github.com/Achuan-2/siyuan-plugin-childdoc-organizer/issues/3)
 
