@@ -2,7 +2,7 @@
   "name": "siyuan-plugin-childdoc-organizer",
   "author": "Achuan-2",
   "url": "https://github.com/Achuan-2/siyuan-plugin-childdoc-organizer",
-  "version": "0.0.10",
+  "version": "0.1.0",
   "minAppVersion": "3.1.15",
   "backends": [
     "windows",
@@ -33,7 +33,8 @@
   },
   "funding": {
     "custom": [
-      "https://www.yuque.com/achuan-2"
+        "https://pancake.waffo.ai/store/achuan-2-fdbho4ye/product/PROD_3F7Aa7c2NQlz9KmxcgxjQ7?type=onetime&currency=USD",
+        "https://fastly.jsdelivr.net/gh/Achuan-2/PicBed/assets/20241128221208-2024-11-28.png"
     ]
   },
   "keywords": [
