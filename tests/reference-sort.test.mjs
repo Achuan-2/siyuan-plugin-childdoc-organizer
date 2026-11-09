@@ -99,6 +99,33 @@ function expectedSort(ids) {
     return ids.map((id, index) => ({ id, sort: index + 1 }));
 }
 
+function renderBlockRefMenu(f, referenceID, { otherPlugin = false } = {}) {
+    const classes = new Set();
+    const state = { itemRemoved: false, pluginRemoved: false, separatorRemoved: false };
+    const pluginItem = {
+        remove: () => { state.pluginRemoved = true; },
+        previousElementSibling: {
+            getAttribute: () => 'separator_pluginTop',
+            remove: () => { state.separatorRemoved = true; },
+        },
+    };
+    const item = {
+        isConnected: true,
+        classList: { add: name => classes.add(name), remove: name => classes.delete(name) },
+        closest: () => pluginItem,
+        parentElement: { querySelector: () => otherPlugin ? {} : null },
+        remove: () => { state.itemRemoved = true; item.isConnected = false; },
+    };
+    let action;
+    f.plugin.handleBlockRefMenu({ detail: {
+        element: { getAttribute: name => name === 'data-id' ? referenceID : 'd' },
+        protyle: { block: { rootID: 'parent' } },
+        // 模拟宿主同步消费菜单，不能等异步 SQL 完成后才添加菜单项。
+        menu: { addItem: option => { action = option; option.bind(item); } },
+    } });
+    return { action, classes, item, state };
+}
+
 test('全文移动排序依照首次引用顺序，排除重复引用和普通块', async () => {
     const f = fixture({ references: ['beta', 'alpha', 'beta', 'paragraph', 'existing', 'ancestor', 'parent'] });
     await f.plugin.moveAndSortReferencedDocs('parent');
@@ -156,3 +183,73 @@ for (const endpoint of ['moveDocsByID', 'setSort']) {
         if (endpoint === 'moveDocsByID') assert.deepEqual(f.sorts(), []);
     });
 }
+
+test('块引菜单确认目标为文档后显示，点击仅移动这一篇文档', async () => {
+    const f = fixture();
+    const menu = renderBlockRefMenu(f, 'alpha');
+    assert.equal(menu.classes.has('fn__none'), true);
+    await new Promise(setImmediate);
+    assert.equal(menu.classes.has('fn__none'), false);
+    assert.equal(menu.action.label, i18n.moveReferencedDoc);
+    await menu.action.click();
+    assert.deepEqual(f.moves(), [['alpha']]);
+    assert.deepEqual(f.sorts(), []);
+    assert.equal(f.plugin.loading, false);
+});
+
+for (const referenceID of ['paragraph', 'missing']) {
+    test(`块引目标为 ${referenceID} 时移除菜单，不将动态锚文本误认为文档类型`, async () => {
+        const f = fixture();
+        const menu = renderBlockRefMenu(f, referenceID);
+        await new Promise(setImmediate);
+        assert.equal(menu.state.itemRemoved, true);
+        assert.equal(menu.state.pluginRemoved, true);
+        assert.equal(menu.state.separatorRemoved, true);
+        assert.deepEqual(f.moves(), []);
+    });
+}
+
+test('移除不适用的块引菜单时保留其他插件的菜单', async () => {
+    const menu = renderBlockRefMenu(fixture(), 'paragraph', { otherPlugin: true });
+    await new Promise(setImmediate);
+    assert.equal(menu.state.itemRemoved, true);
+    assert.equal(menu.state.pluginRemoved, false);
+    assert.equal(menu.state.separatorRemoved, false);
+});
+
+test('菜单已经关闭时，查询完成后不再修改旧菜单', async () => {
+    const menu = renderBlockRefMenu(fixture(), 'alpha');
+    menu.item.isConnected = false;
+    await new Promise(setImmediate);
+    assert.equal(menu.classes.has('fn__none'), true);
+});
+
+for (const referenceID of ['ancestor', 'parent', 'existing']) {
+    test(`块引移动 ${referenceID} 时不重复移动子文档或制造循环`, async () => {
+        const f = fixture();
+        await f.plugin.moveReferencedDocAsChild('parent', referenceID);
+        assert.deepEqual(f.moves(), []);
+        assert.equal(f.plugin.loading, false);
+    });
+}
+
+test('块引菜单移动失败时显示错误并关闭进度弹窗', async () => {
+    const f = fixture({ fail: '/api/filetree/moveDocsByID' });
+    await f.plugin.moveReferencedDocAsChild('parent', 'alpha');
+    assert.equal(f.messages.at(-1)[0], '模拟接口失败');
+    assert.equal(f.messages.at(-1)[2], 'error');
+    assert.equal(f.plugin.loading, false);
+});
+
+test('块引菜单事件使用同一函数订阅和取消订阅', async () => {
+    const f = fixture();
+    const listeners = new Map();
+    f.plugin.eventBus = {
+        on: (type, listener) => listeners.set(type, listener),
+        off: (type, listener) => { if (listeners.get(type) === listener) listeners.delete(type); },
+    };
+    await f.plugin.onload();
+    assert.equal(listeners.get('open-menu-blockref'), f.plugin.handleBlockRefMenu);
+    await f.plugin.onunload();
+    assert.equal(listeners.has('open-menu-blockref'), false);
+});

@@ -1,6 +1,8 @@
 {
     "childDocOrganizer": "ChildDoc Organizer",
     "moveAndSort": "Move referenced docs as childdocs and sort",
+    "moveReferencedDoc": "Move referenced document as a child document",
+    "moveReferencedDocFailed": "Failed to move the referenced document",
     "onlySort": "Only sort referenced childdocs (1 levels)",
     "multiLevelSort": "Only sort referenced childdocs (all levels)",
     "createFromParagraphs": "Create Child Docs from Paragraphs",

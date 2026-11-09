@@ -1,6 +1,8 @@
 {
     "childDocOrganizer": "子文档整理",
     "moveAndSort": "移动引用文档为子文档并排序",
+    "moveReferencedDoc": "移动块引文档为子文档",
+    "moveReferencedDocFailed": "移动块引文档失败",
     "onlySort": "排序引用的子文档（一级）",
     "multiLevelSort": "排序引用的子文档（所有层级）",
     "createFromParagraphs": "从段落创建子文档",

@@ -37,6 +37,78 @@ export default class DocMoverPlugin extends Plugin {
         this.eventBus.on("open-menu-doctree", this.handleFiletreeMenu.bind(this));
         // 块菜单添加菜单
         this.eventBus.on('click-blockicon', this.handleBlockMenu.bind(this));
+        this.eventBus.on('open-menu-blockref', this.handleBlockRefMenu);
+    }
+
+    private handleBlockRefMenu = ({ detail }) => {
+        const referenceID = detail.element?.getAttribute("data-id");
+        const currentDocID = detail.protyle?.block?.rootID;
+        if (!referenceID || !currentDocID) return;
+
+        // 菜单事件同步渲染，先注册隐藏项，再异步确认引用目标；data-subtype 仅表示锚文本类型。
+        detail.menu.addItem({
+            id: "childdoc-organizer-move-reference",
+            icon: "iconMove",
+            label: this.i18n.moveReferencedDoc,
+            bind: (menuItem: HTMLElement) => {
+                menuItem.classList.add("fn__none");
+                void getBlockByID(referenceID).then(target => {
+                    if (!menuItem.isConnected) return;
+                    if (target?.type === "d") {
+                        menuItem.classList.remove("fn__none");
+                    } else {
+                        this.removeBlockRefMenuItem(menuItem);
+                    }
+                }).catch(error => {
+                    console.error("读取块引目标失败", error);
+                    if (menuItem.isConnected) this.removeBlockRefMenuItem(menuItem);
+                });
+            },
+            click: () => this.moveReferencedDocAsChild(currentDocID, referenceID),
+        });
+    };
+
+    private removeBlockRefMenuItem(menuItem: HTMLElement) {
+        const items = menuItem.parentElement;
+        const pluginItem = menuItem.closest<HTMLElement>('.b3-menu__item[data-id="plugin"]');
+        menuItem.remove();
+        // 此插件是唯一贡献者时，一并移除宿主生成的空“插件”子菜单和分隔线。
+        if (pluginItem && items && !items.querySelector(':scope > :not(.b3-menu__separator)')) {
+            const separator = pluginItem.previousElementSibling;
+            if (separator?.getAttribute("data-id") === "separator_pluginTop") separator.remove();
+            pluginItem.remove();
+        }
+    }
+
+    private async moveReferencedDocAsChild(currentDocID: string, referenceID: string) {
+        this.showLoadingDialog(this.i18n.processing);
+        try {
+            await refreshSql();
+            const [currentDoc, target] = await Promise.all([
+                getBlockByID(currentDocID),
+                getBlockByID(referenceID),
+            ]);
+            if (!currentDoc || target?.type !== "d") throw new Error(this.i18n.documentNotFound);
+
+            const childPath = `${currentDoc.path.replace(/\.sy$/, "")}/${referenceID}.sy`;
+            if (referenceID === currentDocID ||
+                currentDoc.path.startsWith(target.path.replace(/\.sy$/, "") + "/") ||
+                (target.box === currentDoc.box && target.path === childPath)) {
+                showMessage(this.i18n.noDocsProcessed);
+                return;
+            }
+            const response = await fetchSyncPost("/api/filetree/moveDocsByID", {
+                fromIDs: [referenceID],
+                toID: currentDocID,
+            });
+            if (response.code !== 0) throw new Error(response.msg || this.i18n.moveReferencedDocFailed);
+            showMessage(this.i18n.movedDocs.replace("{count}", "1"));
+        } catch (error) {
+            console.error("移动块引文档失败", error);
+            showMessage(error instanceof Error ? error.message : String(error), 7000, "error");
+        } finally {
+            this.closeLoadingDialog();
+        }
     }
 
     private isAttributeView(element: HTMLElement): boolean {
@@ -812,6 +884,7 @@ export default class DocMoverPlugin extends Plugin {
     }
 
     async onunload() {
+        this.eventBus.off('open-menu-blockref', this.handleBlockRefMenu);
         this.eventBus.off('click-editortitleicon', this.handleDocumentMenu.bind(this));
         // 文档树添加菜单
         this.eventBus.off("open-menu-doctree", this.handleFiletreeMenu.bind(this));
@@ -820,6 +893,7 @@ export default class DocMoverPlugin extends Plugin {
     }
 
     uninstall() {
+        this.eventBus.off('open-menu-blockref', this.handleBlockRefMenu);
         this.eventBus.off('click-editortitleicon', this.handleDocumentMenu.bind(this));
         // 文档树添加菜单
         this.eventBus.off("open-menu-doctree", this.handleFiletreeMenu.bind(this));
