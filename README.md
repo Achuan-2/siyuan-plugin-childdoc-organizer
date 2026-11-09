@@ -19,8 +19,8 @@ Minimum required version of SiYuan Note for the plugin: v3.1.15
   ![1733596765158 Test Quick Generation of Sub-document Hierarchy Based on List.webp](https://fastly.jsdelivr.net/gh/Achuan-2/PicBed@pic/assets/1733596765158%E6%B5%8B%E8%AF%95%E6%A0%B9%E6%8D%AE%E5%88%97%E8%A1%A8%E5%BF%AB%E9%80%9F%E7%94%9F%E6%88%90%E5%AD%90%E6%96%87%E6%A1%A3%E5%B1%82%E7%BA%A7.webp)
 
 
-## ❤️ Tips Are Welcome
+## ❤️ Buy me a coffee
 
-If you find this plugin useful, you're welcome to leave a tip or give the repository a star on GitHub. Your support helps me maintain and improve this plugin and develop new ones. Thank you for your support!
+If you find this plugin useful, you're welcome to buy me a coffee. Your support helps me maintain and improve this plugin and develop new ones.
 
-[Leave a tip](https://pancake.waffo.ai/store/achuan-2-fdbho4ye/product/PROD_3F7Aa7c2NQlz9KmxcgxjQ7?type=onetime&currency=USD)
+[Buy me a coffee](https://pancake.waffo.ai/store/achuan-2-fdbho4ye/product/PROD_3F7Aa7c2NQlz9KmxcgxjQ7?type=onetime&currency=USD)
