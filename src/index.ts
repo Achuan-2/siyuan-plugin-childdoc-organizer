@@ -11,7 +11,7 @@ import {
 import "@/index.scss";
 import { SettingUtils } from "./libs/setting-utils";
 import { svelteDialog } from "./libs/dialog";
-import { sql, moveDocsByID, getBlockByID, getBlockDOM, getFile, putFile, refreshSql, createDocWithMd, updateBlock, addRiffCards } from "./api";
+import { sql, getBlockByID, getBlockDOM, setDocSorts, refreshSql, createDocWithMd, updateBlock, addRiffCards } from "./api";
 import LoadingDialog from "./components/LoadingDialog.svelte";
 
 const STORAGE_NAME = "config";
@@ -470,7 +470,7 @@ export default class DocMoverPlugin extends Plugin {
                     click: async () => {
                         const blockIds = [];
                         for (const blockElement of blockElements) {
-                            const refs = Array.from(blockElement.querySelectorAll('span[data-type="block-ref"]'))
+                            const refs = Array.from(blockElement.querySelectorAll('span[data-type~="block-ref"]'))
                                 .map(el => el.getAttribute('data-id'));
                             blockIds.push(...refs);
                         }
@@ -635,22 +635,42 @@ export default class DocMoverPlugin extends Plugin {
         });
     }
 
-    private async getUnaffectedChildDocs(parentDocID: string, affectedDocIds: string[], sortJson: any): Promise<{ id: string, sortValue: number }[]> {
-        const childDocsQuery = `
-            SELECT DISTINCT id 
-            FROM blocks 
-            WHERE type = 'd' 
-            AND path LIKE '%/${parentDocID}/%'
-            AND path NOT LIKE '%/${parentDocID}/%/%'
-        `;
-        const childDocs = await sql(childDocsQuery);
-        return childDocs
-            .filter(doc => !affectedDocIds.includes(doc.id))
-            .map(doc => ({
-                id: doc.id,
-                sortValue: sortJson[doc.id] || 0
-            }))
-            .sort((a, b) => a.sortValue - b.sortValue);
+    private async getOrderedReferenceIDs(documentID: string): Promise<string[]> {
+        // SQL 中 refs 的返回顺序不代表正文顺序；完整 DOM 也包含未加载、折叠的正文。
+        const blockDOM = await getBlockDOM(documentID);
+        if (typeof blockDOM?.dom !== "string") {
+            throw new Error("读取文档引用失败");
+        }
+        const template = document.createElement("template");
+        template.innerHTML = blockDOM.dom;
+        const ids = Array.from(template.content.querySelectorAll<HTMLElement>('span[data-type~="block-ref"]'))
+            .map(ref => ref.getAttribute("data-id"))
+            .filter((id): id is string => Boolean(id));
+        return [...new Set(ids)];
+    }
+
+    private async sortReferencedChildDocs(parentDoc: Block, referenceIDs: string[]): Promise<{ affected: number, unaffected: number }> {
+        const response = await fetchSyncPost("/api/filetree/listDocsByPath", {
+            notebook: parentDoc.box,
+            path: parentDoc.path,
+            sort: 6,
+            showHidden: true,
+            maxListCount: 0,
+        });
+        if (response.code !== 0 || !Array.isArray(response.data?.files)) {
+            throw new Error(response.msg || "读取子文档失败");
+        }
+
+        const childIDs = response.data.files.map(file => file.id) as string[];
+        const childIDSet = new Set(childIDs);
+        const affectedIDs = [...new Set(referenceIDs)].filter(id => childIDSet.has(id));
+        if (affectedIDs.length === 0) return { affected: 0, unaffected: 0 };
+
+        const affectedIDSet = new Set(affectedIDs);
+        const unaffectedIDs = childIDs.filter(id => !affectedIDSet.has(id));
+        // 保留原有规则：未引用的子文档在前，引用文档按首次出现顺序排在后面。
+        await setDocSorts([...unaffectedIDs, ...affectedIDs]);
+        return { affected: affectedIDs.length, unaffected: unaffectedIDs.length };
     }
 
     private showLoadingDialog(message: string, current: number | null = null, total: number | null = null) {
@@ -685,204 +705,106 @@ export default class DocMoverPlugin extends Plugin {
 
     private async moveAndSortReferencedDocs(currentDocID: string, blockIds?: string[], isAttributeView: boolean = false, onlySort: boolean = false) {
         this.showLoadingDialog(this.i18n.processing);
-        await refreshSql();
-        let movedCount = 0;
-        const docsToMove: string[] = [];
-        if (!onlySort) {
-            const moveQuery = blockIds && blockIds.length > 0
-                ? `
-                    SELECT DISTINCT root_id as def_block_id
-                    FROM blocks 
-                    WHERE id IN (${blockIds.map(id => `'${id}'`).join(',')})
+        try {
+            await refreshSql();
+            const currentDoc = await getBlockByID(currentDocID);
+            if (!currentDoc) throw new Error(this.i18n.documentNotFound);
+
+            // 局部操作和数据库视图使用调用方给出的顺序，且不能扩大到全文引用。
+            const referenceIDs = blockIds !== undefined || isAttributeView
+                ? [...new Set(blockIds || [])].filter(Boolean)
+                : await this.getOrderedReferenceIDs(currentDocID);
+            let movedCount = 0;
+            if (!onlySort && referenceIDs.length > 0) {
+                const referencedDocs = await sql(`
+                    SELECT id, path FROM blocks
+                    WHERE id IN (${referenceIDs.map(id => `'${id}'`).join(',')})
                     AND type = 'd'
-                    AND path NOT LIKE '%${currentDocID}%'
-                `
-                : `
-                    SELECT DISTINCT r.def_block_id 
-                    FROM refs r
-                    JOIN blocks b ON r.def_block_id = b.id
-                    WHERE r.root_id = '${currentDocID}' 
-                    AND r.def_block_id = r.def_block_root_id
-                    AND b.path NOT LIKE '%${currentDocID}%'
-                `;
-
-            const docToMove_sql = await sql(moveQuery);
-            docsToMove.push(...docToMove_sql.map(row => row.def_block_id));
-            if (docsToMove.length > 0) {
-                await moveDocsByID(docsToMove, currentDocID);
-                movedCount = docsToMove.length;
-                await refreshSql();
+                    AND path NOT LIKE '%/${currentDocID}/%'
+                    AND id != '${currentDocID}'
+                    LIMIT 999999
+                `);
+                // 排除当前文档的祖先，避免将文档移动到自己的后代下。
+                const movableIDs = new Set(referencedDocs
+                    .filter(doc => !currentDoc.path.startsWith(doc.path.replace(/\.sy$/, "") + "/"))
+                    .map(doc => doc.id));
+                const docsToMove = referenceIDs.filter(id => movableIDs.has(id));
+                if (docsToMove.length > 0) {
+                    const response = await fetchSyncPost("/api/filetree/moveDocsByID", {
+                        fromIDs: docsToMove,
+                        toID: currentDocID,
+                    });
+                    if (response.code !== 0) throw new Error(response.msg || "移动文档失败");
+                    movedCount = docsToMove.length;
+                    await refreshSql();
+                }
             }
-        }
 
-        let sortedCount = 0;
-        let unaffectedCount = 0;
-
-        // Handle sorting
-        if (isAttributeView && blockIds && blockIds.length > 0) {
-            // Get root IDs for the bound blocks in order
-            const rootIdsQuery = `
-                SELECT DISTINCT id, root_id as def_block_id
-                FROM blocks 
-                WHERE id IN (${blockIds.map(id => `'${id}'`).join(',')})
-                AND type = 'd'
-                AND (
-                    id IN (${docsToMove.map(id => `'${id}'`).join(',') || "''"})
-                    OR (
-                        path LIKE '%/${currentDocID}/%'
-                        AND path NOT LIKE '%/${currentDocID}/%/%'
-                    )
-                )
-            `;
-            const blockRoots = await sql(rootIdsQuery);
-
-            // For document blocks, we can use the id directly since id = root_id
-            const sortedRootIds = blockIds
-                .filter(id => blockRoots.some(row => row.id === id))
-                .map(id => id);
-
-            if (sortedRootIds.length > 0) {
-                const currentDoc = await getBlockByID(currentDocID);
-                const boxID = currentDoc.box;
-                const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
-
-                const unaffectedDocs = await this.getUnaffectedChildDocs(currentDocID, sortedRootIds, sortJson);
-                sortedCount = sortedRootIds.length;
-
-                // Get and sort unaffected docs
-                unaffectedDocs.forEach((doc, index) => {
-                    sortJson[doc.id] = index + 1;
-                });
-
-                // Apply sorting for affected docs after unaffected ones
-                unaffectedCount = unaffectedDocs.length;
-                sortedRootIds.forEach((id, index) => {
-                    sortJson[id] = unaffectedCount + index + 1;
-                });
-
-                await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
+            const { affected, unaffected } = await this.sortReferencedChildDocs(currentDoc, referenceIDs);
+            const message: string[] = [];
+            if (movedCount > 0) {
+                message.push(this.i18n.movedDocs.replace("{count}", movedCount.toString()));
             }
-        } else if (!isAttributeView) {
-            // Original sorting logic for normal documents
-            const sortQuery = `
-                SELECT DISTINCT def_block_id
-                FROM refs
-                WHERE root_id = '${currentDocID}'
-                AND def_block_id = def_block_root_id
-                AND (
-                    def_block_id IN (${docsToMove.map(id => `'${id}'`).join(',') || "''"})
-                    OR (
-                        def_block_path LIKE '%/${currentDocID}/%'
-                        AND def_block_path NOT LIKE '%/${currentDocID}/%/%'
-                    )
-                )
-            `;
-            const docToSort_sql = await sql(sortQuery);
-            const docsToSort = docToSort_sql.map(row => row.def_block_id);
-            if (docsToSort.length > 0) {
-                const currentDoc = await getBlockByID(currentDocID);
-                const boxID = currentDoc.box;
-                const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
-
-                const unaffectedDocs = await this.getUnaffectedChildDocs(currentDocID, docsToSort, sortJson);
-                sortedCount = docsToSort.length;
-
-                // Get and sort unaffected docs
-                unaffectedDocs.forEach((doc, index) => {
-                    sortJson[doc.id] = index + 1;
-                });
-
-                // Update sort values for affected docs
-                unaffectedCount = unaffectedDocs.length;
-                docsToSort.forEach((id, index) => {
-                    sortJson[id] = unaffectedCount + index + 1;
-                });
-
-                await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
+            if (affected > 0) {
+                message.push(this.i18n.sortedDocs
+                    .replace("{count}", (affected + unaffected).toString())
+                    .replace("{affected}", affected.toString())
+                    .replace("{unaffected}", unaffected.toString()));
             }
+            showMessage(message.length > 0 ? message.join(', ') : this.i18n.noDocsProcessed);
+        } catch (error) {
+            console.error("移动或排序引用文档失败", error);
+            showMessage(error instanceof Error ? error.message : String(error), 7000, "error");
+        } finally {
+            this.closeLoadingDialog();
         }
-
-        // Refresh file tree if needed
-        let element = document.querySelector(`.file-tree li[data-node-id="${currentDocID}"] > .b3-list-item__toggle--hl`);
-        if (element) {
-            element.click();
-            element.click();
-        }
-
-        // Show detailed message and close dialog
-        let message = [];
-        if (!onlySort && movedCount > 0) {
-            message.push(this.i18n.movedDocs.replace("{count}", movedCount.toString()));
-        }
-        if (sortedCount > 0 || unaffectedCount > 0) {
-            message.push(this.i18n.sortedDocs
-                .replace("{count}", (sortedCount + unaffectedCount).toString())
-                .replace("{affected}", sortedCount.toString())
-                .replace("{unaffected}", unaffectedCount.toString()));
-        }
-        this.closeLoadingDialog();
-        showMessage(message.length > 0 ? message.join(', ') : this.i18n.noDocsProcessed);
-
     }
 
     private async multiLevelSort(parentDocID: string) {
         this.showLoadingDialog(this.i18n.processing);
-        await refreshSql();
-
-        // Get all child documents and their paths
-        const childDocsQuery = `
-            SELECT b.id, b.path, r.root_id as parent_id
-            FROM refs r
-            JOIN blocks b ON b.id = r.def_block_id
-            WHERE b.type = 'd' 
-            AND b.path LIKE '%/${parentDocID}/%'
-            AND r.root_id = '${parentDocID}'
-        `;
-
-        const childDocs = await sql(childDocsQuery);
-
-        // Group documents by their parent path
-        const groupedDocs = new Map<string, Array<{ id: string, path: string }>>();
-
-        childDocs.forEach(doc => {
-            const pathParts = doc.path.split('/');
-            const parentPath = pathParts.slice(0, -1).join('/');
-
-            if (!groupedDocs.has(parentPath)) {
-                groupedDocs.set(parentPath, []);
+        try {
+            await refreshSql();
+            const referenceIDs = await this.getOrderedReferenceIDs(parentDocID);
+            if (referenceIDs.length === 0) {
+                showMessage(this.i18n.noDocsProcessed);
+                return;
             }
-            groupedDocs.get(parentPath).push({
-                id: doc.id,
-                path: doc.path
-            });
-        });
-        // Sort each group and update sort.json
-        const currentDoc = await getBlockByID(parentDocID);
-        const boxID = currentDoc.box;
-        const sortJson = await getFile(`/data/${boxID}/.siyuan/sort.json`);
+            const childDocs = await sql(`
+                SELECT id, path FROM blocks
+                WHERE type = 'd'
+                AND path LIKE '%/${parentDocID}/%'
+                AND id IN (${referenceIDs.map(id => `'${id}'`).join(',')})
+                LIMIT 999999
+            `);
+            const docsByID = new Map<string, { id: string, path: string }>(childDocs.map(doc => [doc.id, doc]));
+            const groupedIDs = new Map<string, string[]>();
+            for (const id of referenceIDs) {
+                const doc = docsByID.get(id);
+                if (!doc) continue;
+                const parentID = doc.path.split('/').slice(-2, -1)[0];
+                if (!groupedIDs.has(parentID)) groupedIDs.set(parentID, []);
+                groupedIDs.get(parentID).push(id);
+            }
 
-        let sortIndex = 1;
-        for (const [parentPath, docs] of groupedDocs) {
-            // Update sort values
-            docs.forEach(doc => {
-                sortJson[doc.id] = sortIndex++;
-            });
+            let affected = 0;
+            let unaffected = 0;
+            for (const [parentID, ids] of groupedIDs) {
+                const parentDoc = await getBlockByID(parentID);
+                if (!parentDoc) throw new Error(this.i18n.documentNotFound);
+                const counts = await this.sortReferencedChildDocs(parentDoc, ids);
+                affected += counts.affected;
+                unaffected += counts.unaffected;
+            }
+            showMessage(this.i18n.sortedDocs
+                .replace("{count}", (affected + unaffected).toString())
+                .replace("{affected}", affected.toString())
+                .replace("{unaffected}", unaffected.toString()));
+        } catch (error) {
+            console.error("多层级排序失败", error);
+            showMessage(error instanceof Error ? error.message : String(error), 7000, "error");
+        } finally {
+            this.closeLoadingDialog();
         }
-
-        await putFile(`/data/${boxID}/.siyuan/sort.json`, sortJson);
-
-        // Refresh file tree
-        let element = document.querySelector(`.file-tree li[data-node-id="${parentDocID}"] > .b3-list-item__toggle--hl`);
-        if (element) {
-            element.click();
-            element.click();
-        }
-
-        this.closeLoadingDialog();
-        showMessage(this.i18n.sortedDocs
-            .replace("{count}", childDocs.length.toString())
-            .replace("{affected}", childDocs.length.toString())
-            .replace("{unaffected}", "0"));
     }
 
     onLayoutReady() {

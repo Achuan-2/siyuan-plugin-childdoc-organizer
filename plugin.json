@@ -3,7 +3,7 @@
   "author": "Achuan-2",
   "url": "https://github.com/Achuan-2/siyuan-plugin-childdoc-organizer",
   "version": "0.1.0",
-  "minAppVersion": "3.1.15",
+  "minAppVersion": "3.8.0",
   "backends": [
     "windows",
     "linux",

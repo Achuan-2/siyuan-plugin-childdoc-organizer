@@ -4,7 +4,7 @@ To simplify the process of creating, archiving, and sorting sub-documents in SiY
 
 ## ✨ Introduction to Plugin Features
 
-Minimum required version of SiYuan Note for the plugin: v3.1.15
+Minimum required version of SiYuan Note for the plugin: v3.8.0
 
 * Feature 1: Allows you to move documents referenced by all blocks in the current document, as well as those referenced by selected blocks (supports multi-selection and databases), to the sub-document path of the current document.
 

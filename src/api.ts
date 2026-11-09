@@ -121,6 +121,16 @@ export async function moveDocsByID(fromIDs: string[], toID: string) {
     return request(url, data);
 }
 
+/** 通过内核保存排序值，由内核负责文档树通知和数据同步。 */
+export async function setDocSorts(docIDs: string[]) {
+    const response = await fetchSyncPost('/api/filetree/setSort', {
+        docSorts: docIDs.map((id, index) => ({ id, sort: index + 1 })),
+    });
+    if (response.code !== 0) {
+        throw new Error(response.msg || '保存文档排序失败');
+    }
+}
+
 
 export async function getHPathByPath(notebook: NotebookId, path: string): Promise<string> {
     let data = {
